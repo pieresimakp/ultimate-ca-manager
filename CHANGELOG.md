@@ -9,6 +9,12 @@ Starting with v2.48, UCM uses Major.Build versioning (e.g., 2.48, 2.49). Earlier
 
 ## [Unreleased]
 
+## [2.138] - 2026-04-24
+
+### Fixed
+- **Settings → Database `Last Optimized` showed `Invalid Date` (#88)** — follow-up to #87. The value was still being formatted at data-load time (before the timezone store had resolved) and the backend was emitting a non-ISO `"YYYY-MM-DD HH:MM:SS UTC"` string for those two fields. Backend now uses `utc_isoformat()` like every other timestamp; frontend formats at render time. Thanks @Hemsby.
+- **CAs page silently truncated the list at 20 entries (#89)** — `/api/v2/cas` defaulted to `per_page=20` even when the caller passed no pagination parameters. The CAs page UI has no pagination controls, so any list above 20 was silently cut. Endpoint now returns the full filtered list when neither `page` nor `per_page` is present in the query string; explicit pagination is preserved. Thanks @nsgautumn.
+
 ## [2.137] - 2026-04-24
 
 ### Fixed
