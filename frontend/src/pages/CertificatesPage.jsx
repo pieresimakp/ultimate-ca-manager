@@ -393,9 +393,15 @@ export default function CertificatesPage() {
     const cert = exportRowCert
     try {
       const blob = await certificatesService.export(cert.id, format, options)
+      if (options._isCopy) return blob
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
       const ext = { pkcs12: 'p12', pkcs7: 'p7b', jks: 'jks' }[format] || format
       downloadBlob(blob, `${cert.common_name || cert.cn || 'certificate'}.${ext}`)
       showSuccess(t('messages.success.export.certificate'))
+      return blob
     } catch {
       showError(t('messages.errors.exportFailed.certificate'))
     }
