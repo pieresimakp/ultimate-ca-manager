@@ -99,6 +99,8 @@ export function FloatingDetailWindow({ windowInfo }) {
       
       const res = await service.export(id, format, options)
       const blob = res instanceof Blob ? res : new Blob([res.data || res], { type: 'application/octet-stream' })
+      if (options._isCopy) return blob
+
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -107,6 +109,7 @@ export function FloatingDetailWindow({ windowInfo }) {
       a.click()
       URL.revokeObjectURL(url)
       showSuccess(t('common.exported'))
+      return blob
     } catch (err) {
       showError(t('common.exportFailed'))
     }

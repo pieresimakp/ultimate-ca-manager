@@ -213,9 +213,15 @@ export default function CAsPage() {
   const handleExport = async (ca, format = 'pem', options = {}) => {
     try {
       const blob = await casService.export(ca.id, format, options)
+      if (options._isCopy) return blob
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
       const ext = { pem: 'pem', der: 'der', pkcs7: 'p7b', pkcs12: 'p12', jks: 'jks' }[format] || format
       downloadBlob(blob, `${ca.name || ca.common_name || 'ca'}.${ext}`)
       showSuccess(t('messages.success.export.ca'))
+      return blob
     } catch (error) {
       showError(error.message || t('cas.exportFailed'))
     }

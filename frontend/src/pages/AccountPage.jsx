@@ -463,10 +463,13 @@ export default function AccountPage() {
     if (!exportCert) return
     try {
       const blob = await userCertificatesService.export(exportCert.id, format, options)
+      if (options._isCopy) return blob
+
       const extMap = { pem: 'pem', der: 'der', pkcs7: 'p7b', pkcs12: 'p12', key: 'key', jks: 'jks' }
       downloadBlob(blob, `${exportCert.name || 'certificate'}.${extMap[format] || 'pem'}`)
       showSuccess(t('userCertificates.exportSuccess'))
       setExportCert(null)
+      return blob
     } catch (error) {
       showError(error.message || t('userCertificates.exportError'))
     }

@@ -17,7 +17,7 @@
  */
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Lock, Certificate, ShieldCheck } from '@phosphor-icons/react'
+import { Download, Lock, Certificate, ShieldCheck, Copy } from '@phosphor-icons/react'
 import { Modal } from './Modal'
 import { Button } from './Button'
 import { cn } from '../lib/utils'
@@ -47,6 +47,7 @@ export function ExportModal({
   const [includeKey, setIncludeKey] = useState(false)
   const [password, setPassword] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [copying, setCopying] = useState(false)
 
   // Reset state when modal opens
   useEffect(() => {
@@ -56,6 +57,7 @@ export function ExportModal({
       setIncludeKey(false)
       setPassword('')
       setExporting(false)
+      setCopying(false)
     }
   }, [open])
 
@@ -73,7 +75,8 @@ export function ExportModal({
     return true
   })
 
-  const handleExport = async () => {
+  const handleExport = async (e) => {
+    if (e) e.preventDefault()
     if (needsPassword && password.length < 4) return
     setExporting(true)
     try {
@@ -90,13 +93,49 @@ export function ExportModal({
     }
   }
 
+  const handleCopyBase64 = async () => {
+    if (needsPassword && password.length < 4) return
+    setCopying(true)
+    try {
+      // Pass a flag or just use the returned blob
+      const result = await onExport(format, {
+        includeChain,
+        includeKey: effectiveIncludeKey,
+        password: (isPkcs12 || isJks) ? password : undefined,
+        _isCopy: true, // Internal flag for parent to know it's for copy (optional)
+      })
+      
+      // result should be the Blob if the parent is updated to return it
+      const blob = result instanceof Blob ? result : null
+      
+      if (blob) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64 = reader.result.split(',')[1]
+          navigator.clipboard.writeText(base64)
+          setCopying(false)
+          onClose()
+        }
+        reader.onerror = () => {
+          setCopying(false)
+        }
+        reader.readAsDataURL(blob)
+      } else {
+        setCopying(false)
+      }
+    } catch (error) {
+      console.error('Copy failed:', error)
+      setCopying(false)
+    }
+  }
+
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !exporting) handleExport()
+    if (e.key === 'Enter' && !exporting && !copying) handleExport()
   }
 
   return (
     <Modal open={open} onClose={() => onClose()} title={t('export.title', 'Export')} size="sm">
-      <form onSubmit={(e) => { e.preventDefault(); handleExport() }} className="p-4 space-y-4">
+      <form onSubmit={handleExport} className="p-4 space-y-4">
         {/* Entity name */}
         {entityName && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-secondary text-sm">
@@ -237,8 +276,17 @@ export function ExportModal({
             {t('common.cancel', 'Cancel')}
           </Button>
           <Button
+            type="button"
+            variant="secondary"
+            disabled={exporting || copying || (needsPassword && password.length < 4)}
+            onClick={handleCopyBase64}
+          >
+            <Copy size={16} />
+            {copying ? t('common.copying', 'Copying...') : t('export.copyBase64', 'Copy BASE64')}
+          </Button>
+          <Button
             type="submit"
-            disabled={exporting || (needsPassword && password.length < 4)}
+            disabled={exporting || copying || (needsPassword && password.length < 4)}
           >
             <Download size={16} />
             {exporting ? t('common.exporting', 'Exporting...') : t('export.download', 'Download')}

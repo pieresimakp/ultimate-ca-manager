@@ -11,7 +11,7 @@ import {
   CheckCircle, Warning, Clock, Certificate, Info
 } from '@phosphor-icons/react'
 import {
-  ResponsiveLayout, ResponsiveDataTable, Badge, Button, Modal, Input
+  ResponsiveLayout, ResponsiveDataTable, Badge, Button, Input, ExportModal
 } from '../components'
 import { userCertificatesService } from '../services'
 import { useNotification, useMobile } from '../contexts'
@@ -45,8 +45,6 @@ export default function UserCertificatesPage() {
   // Export modal
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportCert, setExportCert] = useState(null)
-  const [exportFormat, setExportFormat] = useState('pem')
-  const [exportPassword, setExportPassword] = useState('')
   const [exporting, setExporting] = useState(false)
 
   // Load data
@@ -137,23 +135,28 @@ export default function UserCertificatesPage() {
   }, [t])
 
   // Export handler
-  const handleExport = async () => {
+  const handleExport = async (format, options = {}) => {
     if (!exportCert) return
-    if ((exportFormat === 'pkcs12' || exportFormat === 'jks') && exportPassword.length < 8) {
-      showError(t('userCertificates.exportPasswordMin'))
-      return
-    }
     setExporting(true)
     try {
       const blob = await userCertificatesService.export(
-        exportCert.id, exportFormat,
-        { password: (exportFormat === 'pkcs12' || exportFormat === 'jks') ? exportPassword : undefined }
+        exportCert.id, format,
+        { ...options }
       )
-      const ext = { pkcs12: 'p12', jks: 'jks' }[exportFormat] || 'pem'
-      downloadBlob(blob, `${exportCert.name || 'certificate'}.${ext}`)
+      if (options._isCopy) return blob
+
+      const ext = { pkcs12: 'p12', jks: 'jks' }[format] || 'pem'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${exportCert.name || 'certificate'}.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
       showSuccess(t('userCertificates.exportSuccess'))
       setShowExportModal(false)
-      setExportPassword('')
+      return blob
     } catch (error) {
       showError(error.message || t('userCertificates.exportFailed'))
     } finally {
@@ -315,11 +318,11 @@ export default function UserCertificatesPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-        <Button type="button" size="sm" onClick={() => { setExportCert(selectedCert); setExportFormat('pem'); setShowExportModal(true) }}>
+        <Button type="button" size="sm" onClick={() => { setExportCert(selectedCert); setShowExportModal(true) }}>
           <Download size={14} /> {t('userCertificates.actions.exportPEM')}
         </Button>
         {selectedCert.has_private_key && (
-          <Button type="button" size="sm" variant="secondary" onClick={() => { setExportCert(selectedCert); setExportFormat('pkcs12'); setShowExportModal(true) }}>
+          <Button type="button" size="sm" variant="secondary" onClick={() => { setExportCert(selectedCert); setShowExportModal(true) }}>
             <Certificate size={14} /> {t('userCertificates.actions.exportPKCS12')}
           </Button>
         )}
@@ -398,52 +401,15 @@ export default function UserCertificatesPage() {
         emptyDescription={t('userCertificates.empty.description')}
       />
 
-      {/* Export Modal */}
-      <Modal
+      <ExportModal
         open={showExportModal}
-        onClose={() => { setShowExportModal(false); setExportPassword('') }}
-        title={t('userCertificates.exportTitle')}
-        size="sm"
-      >
-        <div className="p-4 space-y-4">
-          <p className="text-sm text-text-secondary">
-            {t('userCertificates.exportDescription', { name: exportCert?.name || '' })}
-          </p>
-          <div className="flex gap-2">
-            <Button type="button" variant={exportFormat === 'pem' ? 'primary' : 'secondary'} size="sm" onClick={() => setExportFormat('pem')}>
-              PEM
-            </Button>
-            {exportCert?.has_private_key && (
-              <Button type="button" variant={exportFormat === 'pkcs12' ? 'primary' : 'secondary'} size="sm" onClick={() => setExportFormat('pkcs12')}>
-                PKCS12 (.p12)
-              </Button>
-            )}
-            {exportCert?.has_private_key && (
-              <Button type="button" variant={exportFormat === 'jks' ? 'primary' : 'secondary'} size="sm" onClick={() => setExportFormat('jks')}>
-                JKS
-              </Button>
-            )}
-          </div>
-          {(exportFormat === 'pkcs12' || exportFormat === 'jks') && (
-            <Input
-              type="password"
-              label={t('userCertificates.exportPasswordLabel')}
-              placeholder={t('userCertificates.exportPasswordPlaceholder')}
-              value={exportPassword}
-              onChange={(e) => setExportPassword(e.target.value)}
-              helperText={t('userCertificates.exportPasswordMin')}
-            />
-          )}
-          <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <Button type="button" variant="secondary" onClick={() => { setShowExportModal(false); setExportPassword('') }}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="button" onClick={handleExport} loading={exporting} disabled={exporting}>
-              <Download size={14} /> {t('common.export')}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onClose={() => setShowExportModal(false)}
+        entityType="certificate"
+        entityName={exportCert?.name || extractCN(exportCert?.cert_subject) || ''}
+        hasPrivateKey={!!exportCert?.has_private_key}
+        canExportKey={canWrite('user_certificates')}
+        onExport={handleExport}
+      />
     </ResponsiveLayout>
   )
 }
