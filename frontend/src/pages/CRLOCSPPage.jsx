@@ -250,6 +250,19 @@ export default function CRLOCSPPage() {
     downloadBlob(blob, `${selectedCA?.descr || 'crl'}.crl`)
   }
 
+  const handleCopyBase64CRL = () => {
+    if (!selectedCRL?.crl_pem) return
+    
+    // Create a blob from the PEM content and encode the whole file to Base64
+    const blob = new Blob([selectedCRL.crl_pem], { type: 'application/x-pem-file' })
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64 = reader.result.split(',')[1]
+      copyToClipboard(base64)
+    }
+    reader.readAsDataURL(blob)
+  }
+
   const copyToClipboard = (text) => {
     clipboardCopy(text)
     showSuccess(t('common.copied'))
@@ -646,10 +659,16 @@ export default function CRLOCSPPage() {
           </Button>
         )}
         {selectedCRL?.crl_pem && (
-          <Button type="button" size="sm" variant="secondary" onClick={handleDownloadCRL}>
-            <Download size={14} />
-            {t('common.download')}
-          </Button>
+          <>
+            <Button type="button" size="sm" variant="secondary" onClick={handleDownloadCRL}>
+              <Download size={14} />
+              {t('common.download')}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={handleCopyBase64CRL}>
+              <Copy size={14} />
+              {t('export.copyBase64')}
+            </Button>
+          </>
         )}
       </div>
 
