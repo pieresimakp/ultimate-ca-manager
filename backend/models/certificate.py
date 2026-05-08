@@ -35,6 +35,7 @@ class Certificate(db.Model):
     san_ip = db.Column(db.Text)   # JSON array of IP addresses
     san_email = db.Column(db.Text)  # JSON array of email addresses
     san_uri = db.Column(db.Text)  # JSON array of URIs
+    san_upn = db.Column(db.Text)  # JSON array of UPN strings (Microsoft OID 1.3.6.1.4.1.311.20.2.3)
     
     # OCSP
     ocsp_uri = db.Column(db.String(255))
@@ -116,6 +117,17 @@ class Certificate(db.Model):
             return []
         try:
             return json.loads(self.san_uri)
+        except Exception:
+            return []
+
+    @property
+    def san_upn_list(self) -> list:
+        """Get list of UPN SANs (Microsoft User Principal Name)"""
+        import json
+        if not self.san_upn:
+            return []
+        try:
+            return json.loads(self.san_upn)
         except Exception:
             return []
             
@@ -360,6 +372,20 @@ class Certificate(db.Model):
                 sans.extend([f"Email:{e}" for e in email_list])
             except Exception:
                 sans.append(f"Email:{self.san_email}")
+        if self.san_uri:
+            try:
+                import json
+                uri_list = json.loads(self.san_uri) if self.san_uri.startswith('[') else [self.san_uri]
+                sans.extend([f"URI:{u}" for u in uri_list])
+            except Exception:
+                sans.append(f"URI:{self.san_uri}")
+        if self.san_upn:
+            try:
+                import json
+                upn_list = json.loads(self.san_upn) if self.san_upn.startswith('[') else [self.san_upn]
+                sans.extend([f"UPN:{u}" for u in upn_list])
+            except Exception:
+                sans.append(f"UPN:{self.san_upn}")
         return ', '.join(sans) if sans else ""
     
     @property
@@ -419,6 +445,7 @@ class Certificate(db.Model):
             "san_ip": self.san_ip,
             "san_email": self.san_email,
             "san_uri": self.san_uri,
+            "san_upn": self.san_upn,
             # OCSP
             "ocsp_uri": self.ocsp_uri,
             "ocsp_must_staple": self.ocsp_must_staple,

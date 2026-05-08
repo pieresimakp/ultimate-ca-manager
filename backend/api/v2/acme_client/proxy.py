@@ -110,6 +110,8 @@ def register_proxy_account():
 
     if not email:
         return error_response('Email is required', 400)
+    if not isinstance(email, str) or len(email) > 254:
+        return error_response('Email is invalid or too long (max 254 chars)', 400)
 
     # RFC-ish email format validation
     if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):

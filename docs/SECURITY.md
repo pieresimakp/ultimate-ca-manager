@@ -268,6 +268,33 @@ The hardening pass also exposed reusable helpers in `backend/utils/`:
 
 > **SSRF policy reminder.** UCM is on-prem. RFC1918, loopback, `.lan`/`.local`/`.corp` are the **primary use case**, not an attack vector. Use `validate_url_not_cloud_metadata` (blocks cloud-metadata + loopback only) for any user-supplied outbound URL — never `validate_url_not_private`, which would break LAN webhooks, internal SSO, and local ACME validation.
 
+### 11. v2.152 hardening pass
+
+Second consolidated audit. Operator-transparent unless noted.
+
+| Area | Change | Action required |
+|------|--------|-----------------|
+| **OCSP (RFC 6960)** | Mixed-format serial lookup, cache invalidation on revoke, correct `keyHash`, `nonce` bypasses cache, delegated responder must carry `id-pkix-ocsp-nocheck` | None |
+| **CRL (RFC 5280)** | Mixed-format serial handling, no silent truncation of serials >159 bits, auto-regen of expired CRL on CDP fetch | None |
+| **Cert profile (RFC 5280)** | 5 issues fixed in CA/CSR signing paths (SKI/AKI format, BasicConstraints, EKU consistency, KU bit ordering, validity bounds) | None |
+| **ACME (RFC 8555/8737)** | EAB JWK match via thumbprint, JWS algorithm allowlist (asymmetric only), wildcard restricted to DNS-01, ALPN extension marked critical, case-insensitive domains; pre-authz §7.4.1 (migration `033`) | None |
+| **TSA (RFC 3161/5035)** | `signing-certificate-v2` mandatory, body cap 64 KiB, correct `PKIStatus` separation | None |
+| **EST (RFC 7030)** | `serverkeygen` encrypts the generated key under the **client mTLS pubkey**, not the issued cert | None |
+| **SCEP (RFC 8894)** | Renewal rejected when signer cert expired or not yet valid | None |
+| **CA/cert/CSR APIs** | Whitelisted key params, capped validity (≤3650 d), URL validation (CRL DP / AIA / OCSP / IDP), HSM key lock on bind, EC curve whitelist, CSR proof-of-possession (`is_signature_valid`) | None |
+| **RBAC** | Reserved role names rejected (`admin`/`operator`/`viewer`), permission whitelist with wildcard, system roles immutable | Use custom role names |
+| **SSO OIDC** | PKCE (S256) + nonce on auth flow | None |
+| **HSM** | Provider secrets encrypted at rest, sign payload cap 1 MiB, FK-guarded deletes | None |
+| **MSCA** | Fail-closed encryption, EOBO admin gate, audit, size caps | None |
+| **Webhooks** | Secret encrypted at rest, event allowlist, reserved headers locked, events ≤64 per webhook | None |
+| **Discovery** | Port validation, IPv6 subnet cap (≤1024), `update_profile` gated | None |
+| **Audit** | Trusted-proxy XFF, post-cleanup integrity check | None |
+| **Reports / SSH / Trust store** | Param caps, principal/extension caps, PEM size cap (256 KB), sync limit 1–1000 | None |
+| **EAB** | HMAC keys encrypted at rest | None |
+| **Imports** | CA / certificate import paths now encrypt private keys (silent regression fix) | None |
+| **Decoder tools** | `tools/decode-csr` and `tools/decode-cert` capped at 256 KiB → `413` | None |
+| **Users** | Self-change requires current password; `≥1 active admin` invariant enforced | None |
+
 ---
 
 ## Security Best Practices

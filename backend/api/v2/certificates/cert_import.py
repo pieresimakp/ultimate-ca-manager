@@ -15,6 +15,13 @@ from services.import_service import (
     find_existing_ca, find_existing_certificate,
     serialize_cert_to_pem, serialize_key_to_pem
 )
+try:
+    from security.encryption import encrypt_private_key
+    HAS_ENCRYPTION = True
+except ImportError:
+    HAS_ENCRYPTION = False
+    def encrypt_private_key(data):
+        return data
 from . import bp
 
 logger = logging.getLogger(__name__)
@@ -75,6 +82,12 @@ def import_certificate():
         # Serialize to PEM
         cert_pem = serialize_cert_to_pem(cert)
         key_pem = serialize_key_to_pem(private_key) if import_key else None
+        # Encrypt private key at rest (matches creation/CSR-sign code paths).
+        # encrypt_private_key is a no-op if encryption is disabled or fails.
+        encrypted_prv = (
+            encrypt_private_key(base64.b64encode(key_pem).decode('utf-8'))
+            if key_pem else None
+        )
 
         # Check if this is a CA certificate - auto-route to CA table
         if is_ca_certificate(cert):
@@ -92,7 +105,7 @@ def import_certificate():
                 existing_ca.descr = name or cert_info['cn'] or existing_ca.descr
                 existing_ca.crt = base64.b64encode(cert_pem).decode('utf-8')
                 if key_pem:
-                    existing_ca.prv = base64.b64encode(key_pem).decode('utf-8')
+                    existing_ca.prv = encrypted_prv
                 existing_ca.issuer = cert_info['issuer']
                 existing_ca.valid_from = cert_info['valid_from']
                 existing_ca.valid_to = cert_info['valid_to']
@@ -119,7 +132,7 @@ def import_certificate():
                 refid=refid,
                 descr=name or cert_info['cn'] or file.filename,
                 crt=base64.b64encode(cert_pem).decode('utf-8'),
-                prv=base64.b64encode(key_pem).decode('utf-8') if key_pem else None,
+                prv=encrypted_prv,
                 serial=0,
                 subject=cert_info['subject'],
                 issuer=cert_info['issuer'],
@@ -159,7 +172,7 @@ def import_certificate():
             existing_cert.descr = name or cert_info['cn'] or existing_cert.descr
             existing_cert.crt = base64.b64encode(cert_pem).decode('utf-8')
             if key_pem:
-                existing_cert.prv = base64.b64encode(key_pem).decode('utf-8')
+                existing_cert.prv = encrypted_prv
             existing_cert.valid_from = cert_info['valid_from']
             existing_cert.valid_to = cert_info['valid_to']
             existing_cert.aki = cert_info.get('aki')
@@ -218,7 +231,7 @@ def import_certificate():
             refid=refid,
             descr=name or cert_info['cn'] or file.filename,
             crt=base64.b64encode(cert_pem).decode('utf-8'),
-            prv=base64.b64encode(key_pem).decode('utf-8') if key_pem else None,
+            prv=encrypted_prv,
             caref=caref,
             subject=cert_info['subject'],
             issuer=cert_info['issuer'],

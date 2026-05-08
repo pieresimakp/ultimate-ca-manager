@@ -9,6 +9,84 @@ Starting with v2.48, UCM uses Major.Build versioning (e.g., 2.48, 2.49). Earlier
 
 ## [Unreleased]
 
+## [2.152] - 2026-05-08
+
+Security and RFC-compliance hardening pass across all PKI protocols and resource APIs.
+Smoke-tested across SQLite and PostgreSQL on Debian, RHEL/Fedora, and Docker (33 migrations from-scratch on PG verified).
+
+### Security
+- **Certificate authorities** — whitelist key params, cap validity at 3650 days, lock HSM-bound key, validate URLs (CRL DP / AIA / OCSP / IDP), cap bulk and list operations, harden create/update/export. CSR signing now verifies `is_signature_valid` (proof of possession). EC curve restricted to a whitelist.
+- **Certificates** — whitelist key params, cap validity, fix unhold bugs.
+- **CSRs** — cap validity, validate keys, verify CSR pubkey ↔ submitted match, cap PEM size 64 KB.
+- **Templates** — cap validity_days, whitelist key_type/digest, fix import NULL.
+- **Policies / approvals** — enforce group gate, expiry and validity reclamp.
+- **Users** — require current password for self-change, protect last admin (≥1 active admin invariant).
+- **RBAC** — validate role payload, reject reserved names (`admin`/`operator`/`viewer`), permission whitelist with wildcard.
+- **SSO** — add PKCE (S256) and nonce to OIDC auth flow.
+- **HSM** — encrypt provider secrets at rest, cap sign payload at 1 MiB, FK-guard deletes; runtime `pip install` disabled by default (opt-in via `UCM_ALLOW_RUNTIME_PIP=1`).
+- **Microsoft CA** — fail-closed encryption, EOBO admin gate, audit, size caps.
+- **Webhooks** — encrypt secret at rest, validate event names against allowlist, lock reserved headers, cap events per webhook.
+- **Discovery** — validate ports, IPv6 subnet cap (≤1024), gate `update_profile`.
+- **Audit** — trusted-proxy XFF (only honour `X-Forwarded-For` from configured proxies), fix invalid kwargs in ACME audit, post-cleanup integrity check.
+- **Reports** — cap generate params dict size (DoS guard).
+- **SSH** — validate sign/generate payload (caps on principals ≤64, extensions/options ≤32, validity 60 s – 10 y).
+- **Trust store** — whitelist purpose, cap PEM size 256 KB, sync limit 1–1000.
+- **ACME (server)** — close 6 RFC 8555 auth bypasses (account binding, order ownership, authz state machine, finalize URL, key change, deactivation).
+- **ACME (proxy)** — block SSRF via forged proxy IDs; finalize ownership check.
+- **ACME (client)** — validate domain syntax, cap inputs, harden commits.
+- **EAB** — encrypt HMAC keys at rest.
+- **EST** — proof of possession, serialize bug fixes, config bound validation.
+- **SCEP** — tighten challenge auth, audit reads, validate config bounds.
+
+### Fixed (RFC compliance)
+- **OCSP (RFC 6960)** — handle mixed-format serials in DB lookup (decimal / lower hex / upper hex), invalidate cache on revoke, correct `keyHash` calculation, honour `nonce` extension (skip cache when present), refuse delegated responder cert without `id-pkix-ocsp-nocheck`.
+- **CRL (RFC 5280)** — handle mixed-format serials, drop silent truncation of serials >159 bits, auto-regen expired CRL on CDP fetch.
+- **Certificate profile (RFC 5280)** — 5 issues fixed in CA/CSR signing paths (SKI/AKI format, BasicConstraints encoding, EKU consistency, KU bit ordering, validity bounds).
+- **ACME (RFC 8555 / 8737)** — EAB JWK match via thumbprint, JWS algorithm allowlist (asymmetric only), wildcard domain restricted to DNS-01, ALPN extension marked critical, case-insensitive domain handling. Pre-authorisation flow (§7.4.1) — `acme_authorizations.order_id` now nullable (migration 033).
+- **TSA (RFC 3161 / 5035)** — `signing-certificate-v2` ESS attribute now mandatory, request body capped at 64 KiB, correct `PKIStatus` separation from `PKIFailureInfo`.
+- **EST (RFC 7030)** — `serverkeygen` encrypts the server-generated key under the **client mTLS pubkey**, not under the newly issued cert.
+- **SCEP (RFC 8894)** — reject renewal when signer cert is expired or not yet valid.
+
+### Fixed (other)
+- **Imports** — CA and certificate import endpoints now encrypt private keys via `encrypt_private_key` instead of storing base64-plain (silent regression introduced when import paths bypassed the lifecycle mixin).
+
+### Added
+- **`tools/decode-csr` and `tools/decode-cert`** — input capped at 256 KiB → `413` (DoS guard).
+
+### Tests
+- 1676 backend tests + 461 frontend tests pass.
+- 2 encryption-related tests made hermetic to host `master.key` (monkeypatch `MASTER_KEY_PATH` and use `is_string_encrypted()`).
+
+## [2.151] - 2026-05-07
+
+### Fixed
+- **ACME proxy did not enforce External Account Binding (#112)** — when `acme_eab_required` was enabled, the proxy directory at `/acme/proxy/directory` advertised upstream Let's Encrypt's `meta` as-is (which does not require EAB), so clients like win-acme reported "server does not indicate that this is required" and proceeded to register an account without an `externalAccountBinding`. The proxy `POST /acme/proxy/new-account` likewise never inspected the payload for an EAB field and accepted any registration. The proxy now (1) overrides `meta.externalAccountRequired` with the local UCM policy in its directory, and (2) validates the `externalAccountBinding` JWS in `/new-account` exactly like the local server, rejecting registrations without a valid HMAC binding when EAB is required.
+- **Local `/acme/new-account` returned 500 on empty body** — `request.get_json()` raised on requests with `Content-Type: application/jose+json` and an empty body instead of producing a clean `400 malformed`. Now uses `force=True, silent=True` so empty/invalid payloads return the documented ACME error.
+- **ACME admin UI 404 on account detail (#113)** — the admin routes `GET/DELETE /api/v2/acme/accounts/<id>`, `POST .../deactivate`, `GET .../orders`, `GET .../challenges` only resolved by numeric primary key, but the UI passes the public `account_id` string. New `resolve_acme_account()` helper accepts either form and is used by all five admin routes; protocol routes (RFC 8555) are unchanged.
+- **`refactor(acme): bind directory_url to account key via AcmeClientAccount table`** — landed in this release: the on-disk account key file is now selected by joining `AcmeAccount.directory_url` to the matching `AcmeClientAccount` row, removing the previous heuristic that looked up the key by directory URL string match alone.
+
+### Tests
+- **`tests/conftest.py::create_user`** — made the factory idempotent on session-DB collisions, so a test that re-uses a user hint (or a sharded CI re-run) no longer fails with HTTP 500 on the second create. The full backend suite (1676 + 209 ACME + frontend 461) is green on all three distros.
+
+## [2.150] - 2026-05-07
+
+### Fixed
+- **ACME default environment ignored when payload omits it (#26)** — `POST /api/v2/acme/client/accounts` and `POST /api/v2/acme/client/orders` always defaulted to staging (`environment='staging'`) when the request body did not specify one, even though Settings → ACME → Let's Encrypt let operators pin a default environment via `acme.client.environment`. New ACME accounts and on-demand orders created from the frontend (which never sends `environment` in the body) silently went to staging instead of production. Both endpoints now read `SystemConfig['acme.client.environment']` when the field is omitted, falling back to `'staging'` only if no default is configured. The frontend `ACMEPage` modal now also waits for `clientSettings` to load before opening, eliminating a race that briefly defaulted the dropdown to staging at mount.
+- **DELETE on templates and certificates failed on FK violation** — `DELETE /api/v2/templates/<id>` did not check if the template was referenced by certificates or policies before issuing the delete, raising `IntegrityError` (HTTP 500) when the template was in use. Now blocks with `409 Conflict` and a "used by N certificate(s) / N policy/policies" message; operators must remove the dependents first. `delete_certificate` in `services/cert/mixins/lifecycle.py` did not clean up `ApprovalRequest` rows pointing to the certificate, hitting the same FK class of failure on certs that had ever been the subject of an approval workflow. Cleanup is now wrapped in a try/except with explicit rollback.
+- **Unprotected `db.session.commit()` in 39 service-layer call sites** — bare commits across 20 service modules (acme_renewal, audit/query, auto_renewal, backup/restore_core, ca/{ca_creation,ca_crud,ca_operations,ca_signing}, cert/mixins/{csr,import_export,lifecycle}, crl/generation, discovery/{profiles,query,scanner}, hsm/hsm_service, opnsense/config, policy_service, ski_aki_backfill, template_service) had no surrounding `try/except`. On any commit failure (constraint violation, disconnected DB, deadlock) SQLAlchemy left the session in a broken-transaction state, causing every subsequent request handled by the same worker to fail with `PendingRollbackError` until the worker recycled. All 39 sites are now wrapped: `try: db.session.commit(); except Exception as e: db.session.rollback(); logger.error(..., exc_info=True); raise` — same caller-side behavior, just a guaranteed rollback.
+- **PostgreSQL upgrades crashed at boot on migration 030 (#111)** — `030_add_certificate_san_upn._upgrade_pg(engine)` opened `with engine.begin() as conn:` but the migration runner already passes the live, transactional `Connection` to `mod.upgrade(conn)` (fixed in #103/#104). Calling `.begin()` on an already-bound `Connection` raises `sqlalchemy.exc.InvalidRequestError: a transaction is already begun on this connection`, killing the boot of every PostgreSQL install upgrading to v2.149. Reported by @Hemsby. Migration 030 now uses the runner-supplied `Connection` directly. The same latent bug existed in eight earlier `pg_compatible` migrations (020, 021, 022, 023, 024, 025, 026, 027 EAB, 027 backfill SAN email) — they were invisible because previously applied installs never re-ran them, but a fresh PostgreSQL install would have hit the same crash on first migration. All nine are converted to the `_upgrade_pg(conn)` shape and use the supplied connection directly.
+- **Test guard against future regressions** — added `test_pg_migrations_do_not_open_nested_transactions` in `tests/test_migration_runner_pg.py` that AST-scans every `pg_compatible` migration and rejects any call to `engine.begin()` / `conn.begin()`. The pre-commit hook will catch any new migration that re-introduces the pattern. End-to-end check `test_pg_migration_runs_against_real_postgres` was rerun against a real PostgreSQL 15 container and passes.
+
+## [2.149] - 2026-05-06
+
+### Added
+- **Microsoft UPN SAN support (1.3.6.1.4.1.311.20.2.3)** — CSRs and certificates can now carry User Principal Names in the Subject Alternative Name extension, the format Microsoft Active Directory expects for smart-card / certificate-based logon. UPN values are validated (`user@domain` form, no whitespace), DER-encoded as `OtherName(UPN_OID, UTF8String)` via `asn1crypto`, persisted in a new `certificates.san_upn` column (JSON array, migration `030_add_certificate_san_upn.py`, multi-backend SQLite + PostgreSQL), and surfaced in the UI through a new `UPN` option in the SAN editor on both the CSR creation page and the issue-certificate form. Internal CA issuance, ACME, EST, SCEP, and the `POST /api/v2/csrs` and `POST /api/v2/certificates` endpoints all accept UPN entries via the `UPN:` prefix in the unified `san` array. The detail panel renders them in `san_combined` as `UPN:user@corp.local`. Read-side parser already supports them via `utils/cert_extensions.py`.
+- **EOBO auto-fill prefers UPN SAN** — when enabling Enroll-On-Behalf-Of in the Microsoft CA submission flow, the enrollee UPN field now auto-populates from the CSR's UPN SAN first, then falls back to SAN email, then to the subject `emailAddress`. Operators no longer have to retype the UPN that was already encoded in the CSR.
+
+### Fixed
+- **Microsoft CA issuance created a duplicate Certificate row** — `_import_signed_cert` in `api/v2/msca.py` issued an `INSERT` for a brand-new `Certificate` (with `source='msca'`) AND an in-place `UPDATE` of the originating CSR row, leaving two records for the same certificate (the CSR-derived one without `source`, so it was missing the `ADCS` tag in the UI). Now the CSR row is upgraded in-place into a full certificate (subject, issuer, serial, AKI/SKI, validity, SANs refreshed from the issued cert, `source='msca'`) and `MSCARequest.cert_id` points to it. The fallback `INSERT` path is kept for the (currently unused) case where there is no originating CSR.
+- **ACME default environment Select didn't persist** — the Select on Settings → ACME → Let's Encrypt always reverted to Staging after reload. Frontend was reading/writing `default_environment` and `contact_email`, but `GET/PATCH /api/v2/acme/client/settings` uses the keys `environment` and `email`. The PATCH was silently dropped (unknown key) and the GET response was never read on the UI side, so the dropdown could never reflect a saved value. Aligned `LetsEncryptTab` and `ACMEPage` on the actual backend keys (#110).
+
 ## [2.148] - 2026-05-06
 
 ### Fixed

@@ -5,6 +5,7 @@ Implements RFC 8894 SCEP endpoints at /scep/pkiclient.exe
 
 from flask import Blueprint, request, make_response
 from models import db, CA, SystemConfig
+from utils.trusted_proxy import client_ip
 import base64
 import logging
 
@@ -251,11 +252,11 @@ def handle_pki_operation():
         if not pkcs7_data:
             return make_error_response("Empty PKCS#7 message", 400)
 
-        # Get client IP for logging
-        client_ip = request.remote_addr or 'unknown'
+        # Get client IP for logging (respects X-Forwarded-For only behind a trusted proxy)
+        ip = client_ip() or 'unknown'
 
         # Process the SCEP request
-        response_data, status = service.process_pkcs_req(pkcs7_data, client_ip)
+        response_data, status = service.process_pkcs_req(pkcs7_data, ip)
 
         # Return PKCS#7 response
         response = make_response(response_data)

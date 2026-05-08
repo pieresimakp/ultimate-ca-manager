@@ -163,19 +163,24 @@ def create_csr():
         # Simple parser
         if 'RSA' in key_algo_full:
             key_type = key_algo_full.replace('RSA', '').strip() or '2048'
+            if key_type not in ('2048', '3072', '4096'):
+                return error_response('RSA key size must be 2048, 3072, or 4096', 400)
         elif 'EC' in key_algo_full:
             key_type = key_algo_full.replace('EC', '').strip() or 'secp256r1'
+            if key_type not in ('secp256r1', 'secp384r1', 'secp521r1', 'prime256v1'):
+                return error_response('EC curve must be secp256r1, secp384r1, or secp521r1', 400)
         else:
             key_type = '2048'
 
-        # Parse SANs - frontend sends ["DNS:example.com", "IP:1.2.3.4", "Email:user@example.com"]
+        # Parse SANs - frontend sends ["DNS:example.com", "IP:1.2.3.4", "Email:user@example.com", "UPN:user@domain"]
+        from utils.upn_san import is_valid_upn
         san_dns = []
         san_ip = []
         san_email = []
         san_uri = []
+        san_upn = []
         for entry in data.get('sans', []):
             entry = entry.strip()
-            # Detect type from prefix
             entry_lower = entry.lower()
             if entry_lower.startswith('email:'):
                 val = entry[6:].strip()
@@ -186,6 +191,13 @@ def create_csr():
                 val = entry[4:].strip()
                 if val:
                     san_uri.append(val)
+                continue
+            if entry_lower.startswith('upn:'):
+                val = entry[4:].strip()
+                if val:
+                    if not is_valid_upn(val):
+                        return error_response(f'Invalid UPN format: {val}', 400)
+                    san_upn.append(val)
                 continue
             # Strip DNS:/IP: prefix for remaining
             entry_clean = re.sub(r'^(DNS|IP):\s*', '', entry, flags=re.IGNORECASE)
@@ -206,6 +218,7 @@ def create_csr():
             san_ip=san_ip or None,
             san_email=san_email or None,
             san_uri=san_uri or None,
+            san_upn=san_upn or None,
             username=getattr(g, 'current_user', None) and g.current_user.username or 'system'
         )
         
@@ -238,17 +251,26 @@ def upload_csr():
         name: Optional display name
     """
     
-    data = request.get_json()
+    data = request.get_json(silent=True)
     if not data or not data.get('pem'):
         return error_response('PEM content required', 400)
-    
-    csr_pem = data['pem'].encode('utf-8') if isinstance(data['pem'], str) else data['pem']
+
+    pem_raw = data['pem']
+    if isinstance(pem_raw, str):
+        if len(pem_raw) > 65536:
+            return error_response('CSR PEM too large (max 64KB)', 413)
+        csr_pem = pem_raw.encode('utf-8')
+    else:
+        csr_pem = pem_raw
     name = data.get('name', '')
-    
+
     try:
         # Parse CSR
-        csr = x509.load_pem_x509_csr(csr_pem, default_backend())
-        
+        try:
+            csr = x509.load_pem_x509_csr(csr_pem, default_backend())
+        except (ValueError, TypeError) as e:
+            return error_response(f'Invalid CSR PEM: {e}', 400)
+
         # RFC 2986 §2.2: verify CSR signature
         if not csr.is_signature_valid:
             return error_response('CSR has invalid signature', 400)
@@ -369,8 +391,11 @@ def import_csr():
     
     try:
         # Parse CSR
-        csr = x509.load_pem_x509_csr(csr_pem, default_backend())
-        
+        try:
+            csr = x509.load_pem_x509_csr(csr_pem, default_backend())
+        except (ValueError, TypeError) as e:
+            return error_response(f'Invalid CSR PEM: {e}', 400)
+
         # RFC 2986 §2.2: verify CSR signature
         if not csr.is_signature_valid:
             return error_response('CSR has invalid signature', 400)
@@ -489,8 +514,8 @@ def delete_csr(csr_id):
         else:
             return error_response("CSR not found", 404)
     except Exception as e:
-        logger.error(f"Failed to get CSR details: {e}")
-        return error_response('Failed to get CSR details', 500)
+        logger.error(f"Failed to delete CSR: {e}")
+        return error_response('Failed to delete CSR', 500)
 
 
 @bp.route('/api/v2/csrs/<int:csr_id>/key', methods=['POST'])
@@ -549,6 +574,23 @@ def upload_csr_private_key(csr_id):
                 return error_response('Private key is encrypted - please provide passphrase', 400)
             logger.error(f"Invalid private key for CSR: {e}")
             return error_response('Invalid private key format', 400)
+
+        # Verify key matches CSR public key (RFC 2986 §4.1)
+        try:
+            csr_pem_bytes = base64.b64decode(csr.csr)
+            csr_obj = x509.load_pem_x509_csr(csr_pem_bytes, default_backend())
+            csr_pub = csr_obj.public_key().public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            key_pub = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            if csr_pub != key_pub:
+                return error_response('Private key does not match CSR public key', 400)
+        except ValueError as e:
+            return error_response(f'Could not verify key against CSR: {e}', 400)
         
         # Store key (decrypt if needed, re-encode without password)
         unencrypted_key = private_key.private_bytes(
@@ -606,9 +648,14 @@ def sign_csr(csr_id):
     if cert.crt:
         return error_response('CSR already signed', 400)
     
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     ca_id = data.get('ca_id')
-    validity_days = data.get('validity_days', 365)
+    try:
+        validity_days = int(data.get('validity_days', 365))
+    except (TypeError, ValueError):
+        return error_response('validity_days must be an integer', 400)
+    if validity_days < 1 or validity_days > 3650:
+        return error_response('validity_days must be between 1 and 3650', 400)
     cert_type = data.get('cert_type', 'server')
     extra_ekus = data.get('extra_ekus')
 
@@ -641,7 +688,22 @@ def sign_csr(csr_id):
     
     if not ca.crt or not ca.prv:
         return error_response('CA is not valid for signing', 400)
-    
+
+    # Clamp validity to CA expiration
+    try:
+        from cryptography import x509 as _x509
+        ca_pem = base64.b64decode(ca.crt) if ca.crt else None
+        if ca_pem:
+            ca_cert = _x509.load_pem_x509_certificate(ca_pem)
+            ca_exp = ca_cert.not_valid_after_utc.replace(tzinfo=None)
+            max_days = (ca_exp - utc_now()).days
+            if max_days < 1:
+                return error_response('CA is expired', 400)
+            if validity_days > max_days:
+                validity_days = max_days
+    except Exception as e:
+        logger.warning(f"Could not clamp validity to CA expiration: {e}")
+
     try:
         # Sign the CSR - use CA refid
         signed_result = CertificateService.sign_csr(
@@ -688,7 +750,12 @@ def bulk_sign_csrs():
         return error_response('ids array required', 400)
 
     ca_id = data.get('ca_id')
-    validity_days = data.get('validity_days', 365)
+    try:
+        validity_days = int(data.get('validity_days', 365))
+    except (TypeError, ValueError):
+        return error_response('validity_days must be an integer', 400)
+    if validity_days < 1 or validity_days > 3650:
+        return error_response('validity_days must be between 1 and 3650', 400)
 
     if not ca_id:
         return error_response('ca_id required', 400)
@@ -696,6 +763,19 @@ def bulk_sign_csrs():
     ca = CA.query.get(ca_id)
     if not ca or not ca.crt or not ca.prv:
         return error_response('CA not found or not valid for signing', 404)
+
+    # Clamp validity to CA expiration
+    try:
+        ca_pem = base64.b64decode(ca.crt)
+        ca_cert = x509.load_pem_x509_certificate(ca_pem)
+        ca_exp = ca_cert.not_valid_after_utc.replace(tzinfo=None)
+        max_days = (ca_exp - utc_now()).days
+        if max_days < 1:
+            return error_response('CA is expired', 400)
+        if validity_days > max_days:
+            validity_days = max_days
+    except Exception as e:
+        logger.warning(f"Could not clamp validity to CA expiration: {e}")
 
     ids = data['ids']
     results = {'success': [], 'failed': []}

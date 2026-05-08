@@ -68,11 +68,12 @@ class MicrosoftCA(db.Model):
     @password.setter
     def password(self, value):
         if value:
-            try:
-                from utils.encryption import encrypt_if_needed
-                self._password = encrypt_if_needed(value)
-            except Exception:
-                self._password = value
+            # Fail-closed: if encryption is broken (missing key, etc.) we
+            # MUST NOT silently store the credential in plaintext. Let the
+            # exception propagate so the caller sees the failure and the
+            # row is never persisted.
+            from utils.encryption import encrypt_if_needed
+            self._password = encrypt_if_needed(value)
         else:
             self._password = None
 
@@ -89,11 +90,10 @@ class MicrosoftCA(db.Model):
     @client_key_pem.setter
     def client_key_pem(self, value):
         if value:
-            try:
-                from utils.encryption import encrypt_if_needed
-                self._client_key_pem = encrypt_if_needed(value)
-            except Exception:
-                self._client_key_pem = value
+            # Fail-closed: never silently store a private key in plaintext
+            # if encryption is unavailable.
+            from utils.encryption import encrypt_if_needed
+            self._client_key_pem = encrypt_if_needed(value)
         else:
             self._client_key_pem = None
 

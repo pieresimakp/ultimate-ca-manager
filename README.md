@@ -4,14 +4,14 @@
 ![License](https://img.shields.io/badge/license-BSD--3--Clause%20%2B%20Commons%20Clause-green.svg)
 ![Docker Hub](https://img.shields.io/docker/v/neyslim/ultimate-ca-manager?label=docker%20hub&color=blue)
 ![GHCR](https://img.shields.io/badge/ghcr.io-available-blue)
-![Tests](https://img.shields.io/badge/tests-2043%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-2137%20passing-brightgreen)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20UCM-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/neyslim)
 
 **Ultimate Certificate Manager (UCM)** is a web-based Certificate Authority management platform with PKI protocol support (ACME, SCEP, EST, OCSP, CRL/CDP), Microsoft ADCS integration, multi-factor authentication, and certificate lifecycle management.
 
 > 🚀 **UCM is a young and actively developed project.** Feedback, bug reports, and feature requests are very welcome! Feel free to [open an issue](https://github.com/NeySlim/ultimate-ca-manager/issues) — every report helps make UCM better.
 
-> ✨ **Latest release — v2.140** (2026-04-27): SAN database columns now derived from the canonical SAN list (auto-backfill via migration `027`), and CA / certificate `.crt` / `.key` files are now materialized to disk on every creation path. See the [v2.140 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md) for v2.128 → v2.140.
+> ✨ **Latest release — v2.152** (2026-05-08): security and RFC-compliance hardening pass across all PKI protocols (OCSP, CRL, ACME, EST, SCEP, TSA) and resource APIs (CAs, certs, CSRs, templates, RBAC, HSM, MSCA, SSO, webhooks, discovery, audit, reports, SSH, trust store). Smoke-tested on SQLite and PostgreSQL across Debian, RHEL/Fedora, and Docker. See the [v2.152 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md).
 
 ![Dashboard](docs/screenshots/dashboard-dark.png)
 

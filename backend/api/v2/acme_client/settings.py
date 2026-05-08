@@ -32,8 +32,13 @@ def get_settings():
     renewal_days = SystemConfig.query.filter_by(key='acme.client.renewal_days').first()
 
     # Check if accounts exist
-    staging_account = SystemConfig.query.filter_by(key='acme.client.staging.account_url').first()
-    production_account = SystemConfig.query.filter_by(key='acme.client.production.account_url').first()
+    from models import AcmeClientAccount
+    staging_account = AcmeClientAccount.query.filter_by(
+        directory_url=AcmeClientAccount.LE_STAGING_URL
+    ).first()
+    production_account = AcmeClientAccount.query.filter_by(
+        directory_url=AcmeClientAccount.LE_PRODUCTION_URL
+    ).first()
 
     # LE Proxy settings
     proxy_email_cfg = SystemConfig.query.filter_by(key='acme.proxy_email').first()
@@ -72,8 +77,8 @@ def get_settings():
         'environment': env_cfg.value if env_cfg else 'staging',
         'renewal_enabled': renewal_enabled.value == 'true' if renewal_enabled else True,
         'renewal_days': int(renewal_days.value) if renewal_days else 30,
-        'has_staging_account': bool(staging_account),
-        'has_production_account': bool(production_account),
+        'has_staging_account': bool(staging_account and staging_account.is_registered()),
+        'has_production_account': bool(production_account and production_account.is_registered()),
         'proxy_enabled': proxy_enabled_cfg.value == 'true' if proxy_enabled_cfg else False,
         'verify_ssl': _coerce_bool(client_verify_ssl_cfg.value if client_verify_ssl_cfg else None, True),
         'proxy_email': proxy_email_cfg.value if proxy_email_cfg else None,
@@ -113,6 +118,19 @@ def update_settings():
         _set_config('acme.client.environment', data['environment'], 'ACME client environment')
         updates.append('environment')
 
+        # Update is_default flag on AcmeClientAccount rows
+        from models import AcmeClientAccount
+        target_url = (AcmeClientAccount.LE_STAGING_URL if data['environment'] == 'staging'
+                      else AcmeClientAccount.LE_PRODUCTION_URL)
+        # Clear all defaults, then set on target (creates row if missing)
+        AcmeClientAccount.query.update({AcmeClientAccount.is_default: False})
+        target = AcmeClientAccount.query.filter_by(directory_url=target_url).first()
+        if target:
+            target.is_default = True
+        else:
+            # Will be created by AcmeClientService on first use; nothing to set here
+            pass
+
     if 'renewal_enabled' in data:
         _set_config('acme.client.renewal_enabled',
                    'true' if data['renewal_enabled'] else 'false',
@@ -120,7 +138,10 @@ def update_settings():
         updates.append('renewal_enabled')
 
     if 'renewal_days' in data:
-        days = int(data['renewal_days'])
+        try:
+            days = int(data['renewal_days'])
+        except (TypeError, ValueError):
+            return error_response('Renewal days must be an integer', 400)
         if days < 1 or days > 60:
             return error_response('Renewal days must be between 1 and 60', 400)
         _set_config('acme.client.renewal_days', str(days), 'ACME renewal days before expiry')
@@ -177,6 +198,14 @@ def update_settings():
                 if stale:
                     db.session.delete(stale)
             logger.info(f"Cleared client account credentials due to directory URL change")
+            # Clear creds on any account row that targets the OLD directory URL
+            from models import AcmeClientAccount
+            if old_val:
+                old_account = AcmeClientAccount.query.filter_by(directory_url=old_val).first()
+                if old_account:
+                    old_account.account_url = None
+                    old_account.account_key = None
+                    logger.info(f"Cleared AcmeClientAccount creds for {old_val} (URL changed)")
         _set_config('acme.client.directory_url', url_val, 'Custom ACME directory URL')
         updates.append('directory_url')
 

@@ -44,13 +44,15 @@ class IssuanceMixin:
         except Exception as e:
             return False, f"Invalid CSR: {str(e)}"
         
-        # Validate CSR matches order identifiers
+        # Validate CSR matches order identifiers (RFC 4343: DNS names case-insensitive)
         csr_domains = self._extract_domains_from_csr(csr)
         order_identifiers = json.loads(order.identifiers)
         order_domains = [id['value'] for id in order_identifiers if id.get('type') == 'dns']
-        
-        if set(csr_domains) != set(order_domains):
-            return False, f"CSR domains {csr_domains} don't match order domains {order_domains}"
+
+        csr_domains_norm = {d.lower().rstrip('.') for d in csr_domains}
+        order_domains_norm = {d.lower().rstrip('.') for d in order_domains}
+        if csr_domains_norm != order_domains_norm:
+            return False, f"CSR domains {sorted(csr_domains_norm)} don't match order domains {sorted(order_domains_norm)}"
         
         # CAA record check (RFC 6844 + RFC 8555 §8.1)
         try:

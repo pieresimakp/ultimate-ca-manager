@@ -53,19 +53,37 @@ def get_scep_config():
 def update_scep_config():
     """Update SCEP configuration in database"""
     data = request.json or {}
-    
+
     if 'enabled' in data:
         set_config('scep_enabled', 'true' if data['enabled'] else 'false')
     if 'url' in data:
         set_config('scep_url', data['url'])
     if 'ca_id' in data:
-        set_config('scep_ca_id', str(data['ca_id']) if data['ca_id'] else '')
+        # Validate CA exists if a non-empty ID was provided
+        if data['ca_id']:
+            try:
+                ca_id_int = int(data['ca_id'])
+            except (TypeError, ValueError):
+                return error_response('Invalid ca_id', 400)
+            if not CA.query.get(ca_id_int):
+                return error_response('CA not found', 404)
+            set_config('scep_ca_id', str(ca_id_int))
+        else:
+            set_config('scep_ca_id', '')
     if 'ca_ident' in data:
         set_config('scep_ca_ident', data['ca_ident'])
     if 'auto_approve' in data:
         set_config('scep_auto_approve', 'true' if data['auto_approve'] else 'false')
     if 'challenge_validity' in data:
-        set_config('scep_challenge_validity', str(data['challenge_validity']))
+        # Bound to a sane window: 1 hour .. 30 days. Anything beyond defeats
+        # the point of a one-time enrollment secret.
+        try:
+            cv = int(data['challenge_validity'])
+        except (TypeError, ValueError):
+            return error_response('challenge_validity must be an integer (hours)', 400)
+        if cv < 1 or cv > 720:
+            return error_response('challenge_validity must be between 1 and 720 hours', 400)
+        set_config('scep_challenge_validity', str(cv))
     
     ok, _err = safe_commit(logger, "Failed to update SCEP configuration")
     if not ok:
@@ -108,9 +126,14 @@ def approve_scep_request(request_id):
         
     if scep_req.status != 'pending':
         return error_response(f'Request is already {scep_req.status}', 400)
-    
-    username = getattr(g, 'user', {}).get('username', 'admin') if hasattr(g, 'user') else 'admin'
-    
+
+    # Use the authenticated user's identity. Never default to 'admin' — that
+    # silently impersonates the superuser in audit if the auth context is
+    # somehow missing.
+    if not (hasattr(g, 'current_user') and g.current_user):
+        return error_response('Authentication context required', 401)
+    username = g.current_user.username
+
     scep_req.status = 'approved'
     scep_req.approved_by = username
     scep_req.approved_at = datetime.now(timezone.utc)
@@ -147,9 +170,11 @@ def reject_scep_request(request_id):
         
     if scep_req.status != 'pending':
         return error_response(f'Request is already {scep_req.status}', 400)
-    
-    username = getattr(g, 'user', {}).get('username', 'admin') if hasattr(g, 'user') else 'admin'
-    
+
+    if not (hasattr(g, 'current_user') and g.current_user):
+        return error_response('Authentication context required', 401)
+    username = g.current_user.username
+
     scep_req.status = 'rejected'
     scep_req.rejection_reason = reason
     scep_req.approved_by = username
@@ -192,15 +217,30 @@ def get_scep_stats():
 
 
 @bp.route('/api/v2/scep/challenge/<int:ca_id>', methods=['GET'])
-@require_auth(['read:scep'])
+@require_auth(['write:scep'])
 def get_challenge_password(ca_id):
-    """Get challenge password for a CA"""
+    """Get challenge password for a CA.
+
+    The challenge password is a shared secret that grants the ability to
+    enroll certificates against this CA via SCEP. Possessing it is
+    operationally equivalent to write access — viewers MUST NOT be able to
+    read it. Gated behind ``write:scep`` and audited as a sensitive read.
+    """
     ca = CA.query.get(ca_id)
     if not ca:
         return error_response('CA not found', 404)
-    
+
     challenge = get_config(f'scep_challenge_{ca_id}')
-    
+
+    AuditService.log_action(
+        action='scep_challenge_read',
+        resource_type='scep',
+        resource_id=str(ca_id),
+        resource_name=ca.descr,
+        details=f'Read SCEP challenge password for CA: {ca.descr}',
+        success=True,
+    )
+
     return success_response(data={
         'ca_id': ca_id,
         'challenge': challenge or 'Not configured'

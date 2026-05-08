@@ -10,6 +10,18 @@ from utils.response import success_response, error_response
 
 from . import tools_bp, csr_to_dict, cert_to_dict, logger
 
+# 256 KiB is plenty for any single cert, CSR, or short chain.
+# Caps DoS via large base64-inflated payloads on parser-heavy endpoints.
+MAX_DECODE_BYTES = 256 * 1024
+
+
+def _check_size(pem_data):
+    if len(pem_data) > MAX_DECODE_BYTES:
+        return error_response(
+            f'Input too large (max {MAX_DECODE_BYTES // 1024} KB)', 413
+        )
+    return None
+
 
 @tools_bp.route('/decode-csr', methods=['POST'])
 @require_auth()
@@ -20,6 +32,9 @@ def decode_csr():
 
     if not pem_data:
         return error_response('CSR data is required', 400)
+    err = _check_size(pem_data)
+    if err:
+        return err
 
     try:
         csr = None
@@ -51,6 +66,9 @@ def decode_cert():
 
     if not pem_data:
         return error_response('Certificate data is required', 400)
+    err = _check_size(pem_data)
+    if err:
+        return err
 
     try:
         certs = []

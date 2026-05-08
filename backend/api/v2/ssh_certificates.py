@@ -20,6 +20,110 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint('ssh_certificates_v2', __name__)
 
+# Caps (defense in depth — services may also enforce)
+_MAX_PUBKEY_LEN = 16 * 1024            # OpenSSH pubkeys are < 4KB
+_MAX_PRINCIPALS = 64
+_MAX_PRINCIPAL_LEN = 256
+_MAX_KEY_ID_LEN = 256
+_MAX_EXT_OR_OPTS = 32
+_MAX_OPT_VALUE_LEN = 1024
+_MAX_VALIDITY_SECONDS = 10 * 365 * 24 * 3600  # 10 years
+_VALID_CERT_TYPES = ('user', 'host')
+_VALID_KEY_TYPES = ('ed25519', 'rsa', 'ecdsa-p256', 'ecdsa-p384', 'ecdsa-p521')
+
+
+def _validate_ssh_sign_payload(data, *, require_pubkey):
+    """Return (kwargs_dict, None) on success or (None, error_response) on failure."""
+    ca_id = data.get('ca_id')
+    if not ca_id:
+        return None, error_response('CA ID is required', 400)
+
+    cert_type = (data.get('cert_type') or 'user').strip().lower()
+    if cert_type not in _VALID_CERT_TYPES:
+        return None, error_response('cert_type must be "user" or "host"', 400)
+
+    public_key = ''
+    if require_pubkey:
+        public_key = (data.get('public_key') or '').strip()
+        if not public_key:
+            return None, error_response('Public key is required', 400)
+        if len(public_key) > _MAX_PUBKEY_LEN:
+            return None, error_response('Public key too large', 400)
+
+    principals = data.get('principals', [])
+    if isinstance(principals, str):
+        principals = [p.strip() for p in principals.split(',') if p.strip()]
+    if not isinstance(principals, list):
+        return None, error_response('principals must be a list or comma-separated string', 400)
+    if not principals:
+        return None, error_response('At least one principal is required', 400)
+    if len(principals) > _MAX_PRINCIPALS:
+        return None, error_response(f'Too many principals (max {_MAX_PRINCIPALS})', 400)
+    for p in principals:
+        if not isinstance(p, str) or not p.strip():
+            return None, error_response('Invalid principal', 400)
+        if len(p) > _MAX_PRINCIPAL_LEN:
+            return None, error_response('Principal name too long', 400)
+
+    validity_seconds = data.get('validity_seconds')
+    if validity_seconds is not None:
+        try:
+            validity_seconds = int(validity_seconds)
+        except (TypeError, ValueError):
+            return None, error_response('validity_seconds must be an integer', 400)
+        if validity_seconds < 60 or validity_seconds > _MAX_VALIDITY_SECONDS:
+            return None, error_response(
+                f'validity_seconds must be between 60 and {_MAX_VALIDITY_SECONDS}', 400)
+
+    key_id = data.get('key_id')
+    if key_id is not None:
+        if not isinstance(key_id, str):
+            return None, error_response('key_id must be a string', 400)
+        if len(key_id) > _MAX_KEY_ID_LEN:
+            return None, error_response('key_id too long', 400)
+
+    extensions = data.get('extensions')
+    if extensions is not None:
+        if isinstance(extensions, list):
+            if len(extensions) > _MAX_EXT_OR_OPTS:
+                return None, error_response('Too many extensions', 400)
+            for e in extensions:
+                if not isinstance(e, str) or len(e) > 128:
+                    return None, error_response('Invalid extension', 400)
+        elif isinstance(extensions, dict):
+            if len(extensions) > _MAX_EXT_OR_OPTS:
+                return None, error_response('Too many extensions', 400)
+            for k, v in extensions.items():
+                if not isinstance(k, str) or len(k) > 128:
+                    return None, error_response('Invalid extension key', 400)
+                if v is not None and (not isinstance(v, str) or len(v) > _MAX_OPT_VALUE_LEN):
+                    return None, error_response('Invalid extension value', 400)
+        else:
+            return None, error_response('extensions must be a list or object', 400)
+
+    critical_options = data.get('critical_options')
+    if critical_options is not None:
+        if not isinstance(critical_options, dict):
+            return None, error_response('critical_options must be an object', 400)
+        if len(critical_options) > _MAX_EXT_OR_OPTS:
+            return None, error_response('Too many critical options', 400)
+        for k, v in critical_options.items():
+            if not isinstance(k, str) or len(k) > 128:
+                return None, error_response('Invalid critical option key', 400)
+            if v is not None and (not isinstance(v, str) or len(v) > _MAX_OPT_VALUE_LEN):
+                return None, error_response('Invalid critical option value', 400)
+
+    return {
+        'ca_id': ca_id,
+        'public_key': public_key,
+        'cert_type': cert_type,
+        'principals': principals,
+        'validity_seconds': validity_seconds,
+        'key_id': key_id,
+        'extensions': extensions,
+        'critical_options': critical_options,
+    }, None
+
 
 @bp.route('/api/v2/ssh/certificates', methods=['GET'])
 @require_auth(['read:ssh'])
@@ -166,42 +270,21 @@ def sign_ssh_certificate():
     try:
         data = request.json or {}
 
-        ca_id = data.get('ca_id')
-        if not ca_id:
-            return error_response('CA ID is required', 400)
-
-        public_key = data.get('public_key', '').strip()
-        if not public_key:
-            return error_response('Public key is required', 400)
-
-        cert_type = (data.get('cert_type') or 'user').strip().lower()
-        principals = data.get('principals', [])
-        if isinstance(principals, str):
-            principals = [p.strip() for p in principals.split(',') if p.strip()]
-
-        if not principals:
-            return error_response('At least one principal is required', 400)
+        validated, err = _validate_ssh_sign_payload(data, require_pubkey=True)
+        if err:
+            return err
 
         username = g.current_user.username if hasattr(g, 'current_user') else 'system'
 
-        # Parse validity
-        validity_seconds = data.get('validity_seconds')
-        if validity_seconds:
-            validity_seconds = int(validity_seconds)
-
-        # Parse extensions
-        extensions = data.get('extensions')
-        critical_options = data.get('critical_options')
-
         cert = SSHCertificateService.sign_certificate(
-            ca_id=ca_id,
-            public_key_data=public_key,
-            cert_type=cert_type,
-            principals=principals,
-            validity_seconds=validity_seconds,
-            key_id=data.get('key_id'),
-            extensions=extensions,
-            critical_options=critical_options,
+            ca_id=validated['ca_id'],
+            public_key_data=validated['public_key'],
+            cert_type=validated['cert_type'],
+            principals=validated['principals'],
+            validity_seconds=validated['validity_seconds'],
+            key_id=validated['key_id'],
+            extensions=validated['extensions'],
+            critical_options=validated['critical_options'],
             descr=data.get('descr'),
             source='web',
             username=username,
@@ -213,14 +296,14 @@ def sign_ssh_certificate():
             resource_type='ssh_certificate',
             resource_id=str(cert.id),
             resource_name=cert.key_id,
-            details=f'SSH {cert_type} certificate issued for {", ".join(principals)} (serial: {cert.serial})',
+            details=f'SSH {validated["cert_type"]} certificate issued for {", ".join(validated["principals"])} (serial: {cert.serial})',
             success=True,
             username=username,
         )
 
         try:
             from websocket.emitters import on_ssh_certificate_issued
-            on_ssh_certificate_issued(cert.id, cert.key_id, cert.ssh_ca_id, cert_type)
+            on_ssh_certificate_issued(cert.id, cert.key_id, cert.ssh_ca_id, validated['cert_type'])
         except Exception:
             pass
 
@@ -246,34 +329,26 @@ def generate_ssh_certificate():
     try:
         data = request.json or {}
 
-        ca_id = data.get('ca_id')
-        if not ca_id:
-            return error_response('CA ID is required', 400)
-
-        cert_type = (data.get('cert_type') or 'user').strip().lower()
-        principals = data.get('principals', [])
-        if isinstance(principals, str):
-            principals = [p.strip() for p in principals.split(',') if p.strip()]
-
-        if not principals:
-            return error_response('At least one principal is required', 400)
+        validated, err = _validate_ssh_sign_payload(data, require_pubkey=False)
+        if err:
+            return err
 
         key_type = (data.get('key_type') or 'ed25519').strip().lower()
+        if key_type not in _VALID_KEY_TYPES:
+            return error_response(
+                f'key_type must be one of: {", ".join(_VALID_KEY_TYPES)}', 400)
+
         username = g.current_user.username if hasattr(g, 'current_user') else 'system'
 
-        validity_seconds = data.get('validity_seconds')
-        if validity_seconds:
-            validity_seconds = int(validity_seconds)
-
         result = SSHCertificateService.generate_and_sign(
-            ca_id=ca_id,
-            cert_type=cert_type,
-            principals=principals,
+            ca_id=validated['ca_id'],
+            cert_type=validated['cert_type'],
+            principals=validated['principals'],
             key_type=key_type,
-            validity_seconds=validity_seconds,
-            key_id=data.get('key_id'),
-            extensions=data.get('extensions'),
-            critical_options=data.get('critical_options'),
+            validity_seconds=validated['validity_seconds'],
+            key_id=validated['key_id'],
+            extensions=validated['extensions'],
+            critical_options=validated['critical_options'],
             descr=data.get('descr'),
             source='web',
             username=username,
@@ -287,14 +362,14 @@ def generate_ssh_certificate():
             resource_type='ssh_certificate',
             resource_id=str(cert.id),
             resource_name=cert.key_id,
-            details=f'SSH {cert_type} certificate generated with new {key_type} key',
+            details=f'SSH {validated["cert_type"]} certificate generated with new {key_type} key',
             success=True,
             username=username,
         )
 
         try:
             from websocket.emitters import on_ssh_certificate_issued
-            on_ssh_certificate_issued(cert.id, cert.key_id, cert.ssh_ca_id, cert_type)
+            on_ssh_certificate_issued(cert.id, cert.key_id, cert.ssh_ca_id, validated['cert_type'])
         except Exception:
             pass
 

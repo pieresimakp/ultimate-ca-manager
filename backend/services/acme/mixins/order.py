@@ -314,20 +314,23 @@ class OrderMixin:
         return False
 
     def _create_challenges(self, auth: AcmeAuthorization, status: str, validated: datetime = None):
-        """Helper to create standard challenges for an authorization"""
-        # HTTP-01 Challenge
-        http_token = secrets.token_urlsafe(32)
-        http_challenge = AcmeChallenge(
-            authorization_id=auth.authorization_id,
-            type="http-01",
-            status=status,
-            token=http_token,
-            url=f"{self.base_url}/acme/challenge/{secrets.token_urlsafe(16)}",
-            validated=validated
-        )
-        auth.challenges.append(http_challenge)
-        
-        # DNS-01 Challenge
+        """Helper to create standard challenges for an authorization.
+
+        RFC 8555 §7.1.3 / §8.4: wildcard identifiers (``*.example.com``)
+        MUST NOT be validated via HTTP-01 or TLS-ALPN-01 — only DNS-01.
+        Offering the others would let an attacker who controls a single host
+        under the apex obtain a wildcard cert covering the entire zone.
+        """
+        # Detect wildcard from stored identifier JSON
+        is_wildcard = False
+        try:
+            ident = json.loads(auth.identifier) if isinstance(auth.identifier, str) else auth.identifier
+            value = (ident or {}).get('value', '') if isinstance(ident, dict) else ''
+            is_wildcard = isinstance(value, str) and value.startswith('*.')
+        except Exception:
+            is_wildcard = bool(getattr(auth, 'wildcard', False))
+
+        # DNS-01 Challenge — always offered
         dns_token = secrets.token_urlsafe(32)
         dns_challenge = AcmeChallenge(
             authorization_id=auth.authorization_id,
@@ -338,8 +341,24 @@ class OrderMixin:
             validated=validated
         )
         auth.challenges.append(dns_challenge)
-        
-        # TLS-ALPN-01 Challenge (RFC 8737)
+
+        if is_wildcard:
+            # Per RFC 8555 §8.4 — wildcard MUST be DNS-01 only
+            return
+
+        # HTTP-01 Challenge (non-wildcard only)
+        http_token = secrets.token_urlsafe(32)
+        http_challenge = AcmeChallenge(
+            authorization_id=auth.authorization_id,
+            type="http-01",
+            status=status,
+            token=http_token,
+            url=f"{self.base_url}/acme/challenge/{secrets.token_urlsafe(16)}",
+            validated=validated
+        )
+        auth.challenges.append(http_challenge)
+
+        # TLS-ALPN-01 Challenge (RFC 8737) — non-wildcard only
         tls_token = secrets.token_urlsafe(32)
         tls_challenge = AcmeChallenge(
             authorization_id=auth.authorization_id,

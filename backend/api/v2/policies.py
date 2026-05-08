@@ -14,11 +14,59 @@ import logging
 import base64
 import uuid
 from utils.key_codec import load_pem_bytes
+from utils.datetime_utils import utc_now
 from services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('policies_pro', __name__)
+
+
+# Hard cap mirrored from utils.cert_validation.MAX_VALIDITY_DAYS
+_MAX_VALIDITY_DAYS = 3650
+
+
+def _user_can_act_on_approval(user, approval):
+    """RBAC + group-membership check for approve/reject.
+
+    If the request's policy pins an approval_group_id, the acting user MUST
+    be a member of that group (admins keep their override). Without this
+    check, any user with write:approvals can vote on any request, defeating
+    the whole point of approval_group_id.
+
+    Returns (allowed: bool, reason: Optional[str]).
+    """
+    if user is None:
+        return False, "Authentication required"
+    # Admin can always act
+    if getattr(user, 'role', None) == 'admin':
+        return True, None
+    policy = approval.policy
+    if policy is None or not policy.approval_group_id:
+        # No group restriction → write:approvals already enforced by decorator
+        return True, None
+    try:
+        from models.group import GroupMember
+        is_member = db.session.query(GroupMember.id).filter_by(
+            group_id=policy.approval_group_id,
+            user_id=user.id,
+        ).first() is not None
+    except Exception as e:
+        logger.error(f"Group membership check failed for user={user.id} approval={approval.id}: {e}")
+        return False, "Authorization check failed"
+    if not is_member:
+        return False, "You are not a member of the required approval group"
+    return True, None
+
+
+def _approval_is_expired(approval):
+    """True if the request has an expires_at in the past."""
+    if not approval.expires_at:
+        return False
+    exp = approval.expires_at
+    if exp.tzinfo is not None:
+        exp = exp.replace(tzinfo=None)
+    return exp < utc_now().replace(tzinfo=None)
 
 
 def _issue_approved_certificate(approval):
@@ -38,6 +86,25 @@ def _issue_approved_certificate(approval):
     data = PolicyEvaluationService.get_request_data(approval)
     if not data:
         raise ValueError("No request data stored in approval")
+
+    # Re-clamp validity at issuance time:
+    #   1) hard cap (defence against a tampered/old request_data)
+    #   2) re-check live policy.max_validity_days in case the policy was
+    #      tightened between request and approval
+    requested_validity = int(data.get('validity_days') or 365)
+    if requested_validity <= 0:
+        requested_validity = 365
+    effective_max = _MAX_VALIDITY_DAYS
+    try:
+        if approval.policy and approval.policy.is_active:
+            policy_rules = approval.policy.get_rules() or {}
+            policy_max = policy_rules.get('max_validity_days')
+            if isinstance(policy_max, int) and policy_max > 0:
+                effective_max = min(effective_max, policy_max)
+    except Exception as e:
+        logger.warning(f"Could not re-evaluate policy at issuance for approval {approval.id}: {e}")
+    validity_days = min(requested_validity, effective_max)
+    data['validity_days'] = validity_days  # propagate clamp to the rest of the function
     
     ca = CA.query.get(data['ca_id'])
     if not ca:
@@ -75,7 +142,8 @@ def _issue_approved_certificate(approval):
             subject_attrs.append(x509.NameAttribute(oid, val))
     
     subject = x509.Name(subject_attrs)
-    validity_days = data.get('validity_days', 365)
+    # validity_days already clamped + propagated above
+    validity_days = data['validity_days']
     now = utc_now()
     
     builder = x509.CertificateBuilder()
@@ -442,6 +510,18 @@ def approve_request(request_id):
     if approval.status != 'pending':
         return error_response(f"Request is already {approval.status}", 400)
 
+    # Auto-expire if past expiry
+    if _approval_is_expired(approval):
+        approval.status = 'expired'
+        approval.resolved_at = utc_now()
+        safe_commit(logger, "Failed to expire request")
+        return error_response("Request has expired", 410)
+
+    # Group-membership gate: enforce policy.approval_group_id
+    allowed, reason = _user_can_act_on_approval(user, approval)
+    if not allowed:
+        return error_response(reason or "Not authorized to act on this request", 403)
+
     # Prevent self-approval
     if user_id and approval.requester_id == user_id:
         return error_response("Cannot approve your own request", 403)
@@ -525,6 +605,16 @@ def reject_request(request_id):
 
     if approval.status != 'pending':
         return error_response(f"Request is already {approval.status}", 400)
+
+    if _approval_is_expired(approval):
+        approval.status = 'expired'
+        approval.resolved_at = utc_now()
+        safe_commit(logger, "Failed to expire request")
+        return error_response("Request has expired", 410)
+
+    allowed, reason = _user_can_act_on_approval(user, approval)
+    if not allowed:
+        return error_response(reason or "Not authorized to act on this request", 403)
 
     if user_id is not None:
         existing_votes = approval.get_approvals()

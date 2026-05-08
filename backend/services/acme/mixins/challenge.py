@@ -268,6 +268,13 @@ class ChallengeMixin:
                     
                     try:
                         ext = cert.extensions.get_extension_for_oid(acme_id_oid)
+                        # RFC 8737 §3: the acmeIdentifier extension MUST be
+                        # marked critical. Reject otherwise — accepting a
+                        # non-critical extension lets a misissued cert pass.
+                        if not ext.critical:
+                            raise ValueError(
+                                "acmeIdentifier extension is not marked critical (RFC 8737 §3)"
+                            )
                         # UnrecognizedExtension.value returns raw DER bytes directly
                         ext_value = ext.value.value
                         # DER-encoded: OCTET STRING tag (0x04) + length (0x20=32)

@@ -11,12 +11,41 @@ from utils.datetime_utils import utc_now
 from datetime import timedelta
 import secrets as py_secrets
 import base64
+import hashlib
 import urllib.parse
 import hmac
 import logging
 import traceback
 import json
 import requests as http_requests
+
+
+def _pkce_pair():
+    """Generate a PKCE (RFC 7636) code_verifier + S256 code_challenge pair."""
+    verifier = py_secrets.token_urlsafe(64)[:128]  # 43..128 chars per spec
+    digest = hashlib.sha256(verifier.encode('ascii')).digest()
+    challenge = base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
+    return verifier, challenge
+
+
+def _decode_id_token_payload(id_token):
+    """
+    Best-effort decode of an OIDC id_token payload (middle JWT segment).
+    Returns a dict, or {} on any error. Signature is NOT verified here —
+    state + PKCE + TLS to the configured token endpoint already authenticate
+    the exchange; nonce is the additional replay guard.
+    """
+    try:
+        parts = id_token.split('.')
+        if len(parts) < 2:
+            return {}
+        payload_b64 = parts[1]
+        # base64url with missing padding
+        pad = '=' * (-len(payload_b64) % 4)
+        raw = base64.urlsafe_b64decode(payload_b64 + pad)
+        return json.loads(raw)
+    except Exception:
+        return {}
 
 
 logger = logging.getLogger(__name__)
@@ -60,17 +89,25 @@ def initiate_sso_login(provider_type):
     session['sso_provider_id'] = provider.id
 
     if provider.provider_type == 'oauth2':
-        # Build OAuth2 authorization URL
+        # Build OAuth2 / OIDC authorization URL with PKCE (RFC 7636) + nonce
         scopes = json.loads(provider.oauth2_scopes) if provider.oauth2_scopes else ['openid', 'profile', 'email']
 
         callback_url = request.url_root.rstrip('/') + '/api/v2/sso/callback/oauth2'
+
+        code_verifier, code_challenge = _pkce_pair()
+        nonce = py_secrets.token_urlsafe(32)
+        session['sso_pkce_verifier'] = code_verifier
+        session['sso_nonce'] = nonce
 
         params = {
             'client_id': provider.oauth2_client_id,
             'redirect_uri': callback_url,
             'response_type': 'code',
             'scope': ' '.join(scopes),
-            'state': state
+            'state': state,
+            'code_challenge': code_challenge,
+            'code_challenge_method': 'S256',
+            'nonce': nonce,
         }
 
         auth_url = provider.oauth2_auth_url + '?' + urllib.parse.urlencode(params)
@@ -122,16 +159,24 @@ def sso_callback(provider_type):
             # Exchange code for token
             callback_url = request.url_root.rstrip('/') + '/api/v2/sso/callback/oauth2'
 
+            # PKCE: pop the verifier so it can only be used once
+            code_verifier = session.pop('sso_pkce_verifier', None)
+            expected_nonce = session.pop('sso_nonce', None)
+
+            token_data = {
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': callback_url,
+                'client_id': provider.oauth2_client_id,
+                'client_secret': provider.oauth2_client_secret,
+            }
+            if code_verifier:
+                token_data['code_verifier'] = code_verifier
+
             verify = _get_ssl_verify(provider, 'oauth2')
             token_response = http_requests.post(
                 provider.oauth2_token_url,
-                data={
-                    'grant_type': 'authorization_code',
-                    'code': code,
-                    'redirect_uri': callback_url,
-                    'client_id': provider.oauth2_client_id,
-                    'client_secret': provider.oauth2_client_secret
-                },
+                data=token_data,
                 timeout=10,
                 verify=verify
             )
@@ -145,6 +190,24 @@ def sso_callback(provider_type):
 
             if not access_token:
                 return redirect('/login?error=no_access_token')
+
+            # OIDC: if an id_token is present, validate the nonce binding to
+            # mitigate auth-code replay against this client. Signature is not
+            # verified here (no JWKS infra yet); PKCE + state + TLS already
+            # authenticate the exchange — nonce closes the replay window.
+            id_token = tokens.get('id_token')
+            if id_token and expected_nonce:
+                claims = _decode_id_token_payload(id_token)
+                token_nonce = claims.get('nonce')
+                if not token_nonce or not hmac.compare_digest(str(token_nonce), expected_nonce):
+                    logger.error("OIDC id_token nonce mismatch")
+                    AuditService.log_action(
+                        action='login_failure',
+                        resource_type='sso',
+                        details=f'OIDC nonce mismatch for provider {provider.name}',
+                        success=False
+                    )
+                    return redirect('/login?error=invalid_nonce')
 
             # Get user info
             userinfo_response = http_requests.get(

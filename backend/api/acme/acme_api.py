@@ -31,16 +31,15 @@ def _audit_acme(action: str, *, resource_type: str, resource_id, details: str = 
     """
     try:
         from services.audit_service import AuditService
-        ip = (request.headers.get('X-Forwarded-For')
-              or request.remote_addr or '').split(',')[0].strip()
+        # IP/UA are auto-captured by AuditService from the request context
+        # via utils.trusted_proxy.client_ip() — only honors X-Forwarded-For
+        # when the immediate peer is a configured trusted proxy.
         AuditService.log_action(
             username='acme',
             action=action,
             resource_type=resource_type,
             resource_id=str(resource_id) if resource_id is not None else None,
             details=details,
-            ip_address=ip or None,
-            user_agent=request.headers.get('User-Agent'),
             success=success,
         )
     except Exception as audit_err:  # pragma: no cover - audit must never break ACME
@@ -116,6 +115,27 @@ def acme_error(error_type: str, detail: str, status_code: int = 400) -> Any:
     return response
 
 
+def _account_id_from_jws(jws_data: Dict[str, Any]) -> Optional[str]:
+    """Extract account_id token from a JWS's protected header `kid`.
+    
+    Returns None if no kid present, kid is malformed, or jws_data is invalid.
+    The caller must still verify the JWS signature via verify_jws() before
+    trusting this value.
+    """
+    try:
+        protected_b64 = jws_data.get('protected', '')
+        if not protected_b64:
+            return None
+        protected_b64 += '=' * (-len(protected_b64) % 4)
+        protected = json.loads(base64.urlsafe_b64decode(protected_b64).decode('utf-8'))
+        kid = protected.get('kid', '')
+        if not kid:
+            return None
+        return kid.rstrip('/').split('/')[-1] or None
+    except Exception:
+        return None
+
+
 def verify_jws(jws_data: Dict[str, Any], expected_url: str, account_key: Optional[Dict] = None) -> Tuple[bool, Optional[Dict], Optional[Dict], Optional[str]]:
     """Verify JWS (JSON Web Signature) for ACME requests
     
@@ -154,9 +174,24 @@ def verify_jws(jws_data: Dict[str, Any], expected_url: str, account_key: Optiona
         # Get JWK or KID
         jwk = protected.get('jwk')
         kid = protected.get('kid')
-        
+
         if not jwk and not kid:
             return False, None, None, "Must provide either 'jwk' or 'kid' in protected header"
+        # RFC 8555 §6.2: 'jwk' and 'kid' are mutually exclusive
+        if jwk and kid:
+            return False, None, None, "'jwk' and 'kid' are mutually exclusive"
+
+        # RFC 8555 §6.2 explicit allowlist: forbid 'none' (RFC 7518 §3.6 attack)
+        # and any MAC-based algorithm on the outer JWS. Asymmetric only.
+        alg_early = protected.get('alg', '')
+        ALLOWED_JWS_ALGS = {
+            'RS256', 'RS384', 'RS512',
+            'ES256', 'ES384', 'ES512',
+            # PS256/PS384/PS512 (RSA-PSS) intentionally excluded — UCM only
+            # validates RSASSA-PKCS1-v1_5 below; add here when PSS is wired.
+        }
+        if alg_early not in ALLOWED_JWS_ALGS:
+            return False, None, None, f"Algorithm '{alg_early}' is not permitted (RFC 8555 §6.2)"
         
         # Decode payload
         if 'payload' not in jws_data:
@@ -375,9 +410,11 @@ def new_account():
     service = get_acme_service()
     
     try:
-        # Parse JWS (JSON Web Signature)
-        jws_data = request.get_json()
-        
+        # Parse JWS (JSON Web Signature). force=True so we accept
+        # application/jose+json (RFC 8555 §6.2). silent=True so empty/
+        # invalid body returns None instead of raising 500.
+        jws_data = request.get_json(force=True, silent=True)
+
         if not jws_data:
             return acme_error('malformed', 'Request body must be JWS')
         
@@ -484,23 +521,40 @@ def account_info(account_id: str):
     if not account:
         return acme_error('accountDoesNotExist', 'Account not found', 404)
     
-    # Verify JWS
-    jws_data = request.get_json()
-    if jws_data:
-        expected_url = f"{service.base_url}/acme/acct/{account_id}"
-        is_valid, payload, jwk, error = verify_jws(jws_data, expected_url)
-        if not is_valid:
-            return acme_error('malformed', f'Invalid JWS: {error}')
-        
-        # Handle account deactivation (RFC 8555 Section 7.3.6)
-        if payload and payload.get('status') == 'deactivated':
-            account.status = 'deactivated'
+    # Verify JWS — RFC 8555 §6.3 requires POST-as-GET for read operations too
+    jws_data = request.get_json(force=True, silent=True)
+    if not jws_data:
+        return acme_error('malformed', 'Request body must be JWS')
+    
+    expected_url = f"{service.base_url}/acme/acct/{account_id}"
+    is_valid, payload, jwk, error = verify_jws(jws_data, expected_url)
+    if not is_valid:
+        return acme_error('malformed', f'Invalid JWS: {error}')
+    
+    # Verify the JWS was signed by this account's key — kid in JWS must match URL
+    request_account_id = _account_id_from_jws(jws_data)
+    if request_account_id != account_id:
+        return acme_error('unauthorized', 'JWS signed by different account than URL', 403)
+    
+    # Handle account deactivation (RFC 8555 Section 7.3.6)
+    if payload and payload.get('status') == 'deactivated':
+        account.status = 'deactivated'
+        try:
             db.session.commit()
-        
-        # Handle contact update (RFC 8555 Section 7.3.2)
-        if payload and 'contact' in payload:
-            account.contact = json.dumps(payload['contact'])
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to deactivate account: {e}")
+            return acme_error('serverInternal', 'Failed to update account', 500)
+    
+    # Handle contact update (RFC 8555 Section 7.3.2)
+    if payload and 'contact' in payload:
+        account.contact = json.dumps(payload['contact'])
+        try:
             db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to update contact: {e}")
+            return acme_error('serverInternal', 'Failed to update account', 500)
     
     account_url = f"{service.base_url}/acme/acct/{account.account_id}"
     
@@ -528,13 +582,24 @@ def account_orders(account_id: str):
     if account.status == 'deactivated':
         return acme_error('unauthorized', 'Account is deactivated', 401)
     
-    # Verify JWS (POST-as-GET)
-    jws_data = request.get_json()
-    if jws_data:
-        expected_url = f"{service.base_url}/acme/acct/{account_id}/orders"
-        is_valid, payload, jwk, error = verify_jws(jws_data, expected_url)
-        if not is_valid:
-            return acme_error('malformed', f'Invalid JWS: {error}')
+    # Verify JWS (POST-as-GET) — required, never optional
+    jws_data = request.get_json(force=True, silent=True)
+    if not jws_data:
+        return acme_error('malformed', 'Request body must be JWS')
+    
+    expected_url = f"{service.base_url}/acme/acct/{account_id}/orders"
+    is_valid, payload, jwk, error = verify_jws(jws_data, expected_url)
+    if not is_valid:
+        return acme_error('malformed', f'Invalid JWS: {error}')
+    
+    # POST-as-GET: payload must be empty (RFC 8555 §6.3)
+    if payload:
+        return acme_error('malformed', 'POST-as-GET must have empty payload')
+    
+    # Verify ownership — JWS kid must match URL account_id
+    request_account_id = _account_id_from_jws(jws_data)
+    if request_account_id != account_id:
+        return acme_error('unauthorized', 'JWS signed by different account than URL', 403)
     
     # Get orders for this account
     orders = AcmeOrder.query.filter_by(account_id=account_id).order_by(
@@ -828,6 +893,17 @@ def finalize_order(order_id: str):
         if not payload:
             return acme_error('malformed', 'Payload required for finalize')
         
+        # Verify account ownership of the order — kid must match order's account
+        request_account_id = _account_id_from_jws(jws_data)
+        if not request_account_id:
+            return acme_error('malformed', 'Account kid required')
+        
+        existing_order = service.get_order(order_id)
+        if not existing_order:
+            return acme_error('malformed', 'Order not found', 404)
+        if existing_order.account_id != request_account_id:
+            return acme_error('unauthorized', 'Order does not belong to this account', 403)
+        
         # Extract CSR
         csr_b64 = payload.get('csr', '')
         if not csr_b64:
@@ -1015,6 +1091,15 @@ def respond_to_challenge(challenge_id: str):
         if account.status == 'deactivated':
             return acme_error('unauthorized', 'Account is deactivated', 401)
         
+        # Verify account owns this challenge (via authorization → order)
+        challenge_account = None
+        if challenge.authorization:
+            challenge_account = challenge.authorization.account_id
+            if not challenge_account and challenge.authorization.order:
+                challenge_account = challenge.authorization.order.account_id
+        if challenge_account and challenge_account != account.account_id:
+            return acme_error('unauthorized', 'Challenge does not belong to this account', 403)
+        
         # Trigger validation based on challenge type
         if challenge.type == "http-01":
             success = service.validate_http01_challenge(challenge, account)
@@ -1150,7 +1235,13 @@ def download_certificate(order_id: str):
 
 @acme_bp.route('/revoke-cert', methods=['POST'])
 def revoke_cert():
-    """Revoke certificate (RFC 8555 Section 7.6)"""
+    """Revoke certificate (RFC 8555 Section 7.6).
+    
+    Authorization (RFC 8555 §7.6):
+      - JWS signed by an account that issued the cert (kid path), OR
+      - JWS signed by the cert's own private key (jwk path, embedded JWK
+        must match the cert's public key — proof of possession).
+    """
     service = get_acme_service()
     
     try:
@@ -1176,22 +1267,87 @@ def revoke_cert():
         reason = payload.get('reason', 0)  # RFC 5280 CRLReason
         
         # Decode certificate
-        cert_der = base64.urlsafe_b64decode(cert_b64 + '==')
+        try:
+            cert_der = base64.urlsafe_b64decode(cert_b64 + '==')
+        except Exception:
+            return acme_error('malformed', 'Invalid base64 in certificate')
         
         from cryptography import x509
         from cryptography.hazmat.backends import default_backend
-        cert_obj = x509.load_der_x509_certificate(cert_der, default_backend())
+        from cryptography.hazmat.primitives import serialization, hashes
+        try:
+            cert_obj = x509.load_der_x509_certificate(cert_der, default_backend())
+        except Exception:
+            return acme_error('malformed', 'Invalid certificate DER')
         
-        # Find certificate in database by serial number
+        # Find certificate in database by serial number — DB stores serial in
+        # multiple formats (hex upper, hex lower, decimal) depending on the
+        # issuance path, so match against all three.
         from models import Certificate
-        serial_hex = format(cert_obj.serial_number, 'x').upper()
+        serial_int = cert_obj.serial_number
+        serial_hex_lower = format(serial_int, 'x')
+        serial_hex_upper = serial_hex_lower.upper()
+        serial_dec = str(serial_int)
         
         cert = Certificate.query.filter(
-            Certificate.serial.ilike(f'%{serial_hex}%')
+            Certificate.serial_number.in_([serial_hex_lower, serial_hex_upper, serial_dec])
         ).first()
         
         if not cert:
-            return acme_error('serverInternal', 'Certificate not found', 404)
+            return acme_error('malformed', 'Certificate not found', 404)
+        
+        if cert.revoked:
+            return acme_error('alreadyRevoked', 'Certificate already revoked', 400)
+        
+        # Authorization check (RFC 8555 §7.6)
+        authorized = False
+        request_account_id = _account_id_from_jws(jws_data)
+        
+        if request_account_id:
+            # kid path — verify the account issued this cert via an order
+            from models.acme_models import AcmeOrder
+            owning_order = AcmeOrder.query.filter_by(
+                certificate_id=cert.id,
+                account_id=request_account_id,
+            ).first()
+            if owning_order:
+                authorized = True
+        
+        if not authorized and jwk:
+            # jwk path — embedded JWK must match cert's public key (proof of possession)
+            try:
+                import josepy as jose
+                kty = jwk.get('kty')
+                if kty == 'RSA':
+                    jwk_obj = jose.JWKRSA.json_loads(json.dumps(jwk))
+                elif kty == 'EC':
+                    jwk_obj = jose.JWKEC.json_loads(json.dumps(jwk))
+                else:
+                    jwk_obj = None
+                
+                if jwk_obj is not None:
+                    jwk_pub_der = jwk_obj.key.public_bytes(
+                        encoding=serialization.Encoding.DER,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                    )
+                    cert_pub_der = cert_obj.public_key().public_bytes(
+                        encoding=serialization.Encoding.DER,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                    )
+                    if jwk_pub_der == cert_pub_der:
+                        authorized = True
+            except Exception as e:
+                logger.warning(f"ACME revoke jwk-path verification error: {e}")
+        
+        if not authorized:
+            _audit_acme(
+                'acme.cert.revoke',
+                resource_type='certificate',
+                resource_id=cert.id,
+                details=f"unauthorized serial={serial_hex_lower} requester_account={request_account_id or '(jwk)'}",
+                success=False,
+            )
+            return acme_error('unauthorized', 'Not authorized to revoke this certificate', 403)
         
         # Revoke certificate
         try:
@@ -1207,7 +1363,7 @@ def revoke_cert():
                 'acme.cert.revoke',
                 resource_type='certificate',
                 resource_id=cert.id,
-                details=f"failed serial={serial_hex} reason={reason}: {e}",
+                details=f"failed serial={serial_hex_lower} reason={reason}: {e}",
                 success=False,
             )
             return acme_error('serverInternal', 'Revocation failed', 500)
@@ -1216,7 +1372,7 @@ def revoke_cert():
             'acme.cert.revoke',
             resource_type='certificate',
             resource_id=cert.id,
-            details=f"serial={serial_hex} reason={reason}",
+            details=f"serial={serial_hex_lower} reason={reason} account={request_account_id or '(jwk)'}",
         )
 
         # RFC 8555 §7.6: successful revocation returns 200 with proper headers

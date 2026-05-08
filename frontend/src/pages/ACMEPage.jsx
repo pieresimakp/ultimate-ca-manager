@@ -1056,9 +1056,10 @@ export default function ACMEPage() {
         />
       </Modal>
 
-      {/* Request Certificate Modal */}
+      {/* Request Certificate Modal — gate on clientSettings being loaded
+          so the form's useState captures the configured default env (#26). */}
       <Modal
-        open={showRequestModal}
+        open={showRequestModal && clientSettings.environment != null}
         onClose={() => setShowRequestModal(false)}
         title={t('acme.requestCertificateTitle')}
         size="lg"
@@ -1067,8 +1068,8 @@ export default function ACMEPage() {
           onSubmit={handleRequestCertificate}
           onCancel={() => setShowRequestModal(false)}
           dnsProviders={dnsProviders}
-          defaultEnvironment={clientSettings.default_environment || 'staging'}
-          defaultEmail={clientSettings.contact_email || ''}
+          defaultEnvironment={clientSettings.environment || 'staging'}
+          defaultEmail={clientSettings.email || ''}
         />
       </Modal>
       

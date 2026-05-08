@@ -7,7 +7,7 @@ import hmac
 import json
 import logging
 import uuid
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import Optional, Tuple
 
 import asn1crypto.cms
@@ -486,6 +486,28 @@ class SCEPService:
                 return (
                     self.FAIL_BAD_MESSAGE_CHECK,
                     "Renewal: CSR subject must match existing certificate",
+                )
+
+            # The signer cert must still be within its validity period — an
+            # attacker who recovers an old/expired key MUST NOT be able to
+            # bootstrap a new cert via renewal. RFC 8894 §3.3.2 implies the
+            # renewal is performed by a currently-valid certificate.
+            now = utc_now()
+            try:
+                nb = signer_cert.not_valid_before_utc
+                na = signer_cert.not_valid_after_utc
+            except Exception:
+                # Older cryptography fallback (naive datetimes)
+                nb = signer_cert.not_valid_before.replace(tzinfo=timezone.utc)
+                na = signer_cert.not_valid_after.replace(tzinfo=timezone.utc)
+            if now < nb or now > na:
+                logger.warning(
+                    f"SCEP renewal: signer cert outside validity window "
+                    f"(serial={signer_cert.serial_number}, nb={nb}, na={na})"
+                )
+                return (
+                    self.FAIL_BAD_MESSAGE_CHECK,
+                    "Renewal: signer certificate is expired or not yet valid",
                 )
 
             # The signer cert must not be revoked.

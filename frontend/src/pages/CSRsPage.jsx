@@ -362,6 +362,7 @@ export default function CSRsPage() {
     parseSanField(csr.san_ip, 'IP')
     parseSanField(csr.san_email, 'Email')
     parseSanField(csr.san_uri, 'URI')
+    parseSanField(csr.san_upn, 'UPN')
     return sans.length > 0 ? sans : [{ type: 'DNS', value: '' }]
   }
 
@@ -913,9 +914,20 @@ MIICijCCAXICAQAwRTELMAkGA1UEBhMCVVMx...
                             setEnrolleeName(selectedCSR.subject)
                           }
                           if (!enrolleeUpn) {
-                            // Try SAN email first
+                            // Priority 1: SAN UPN (Microsoft OID 1.3.6.1.4.1.311.20.2.3)
                             let foundUpn = ''
-                            if (selectedCSR.san_email) {
+                            if (selectedCSR.san_upn) {
+                              try {
+                                const upns = typeof selectedCSR.san_upn === 'string'
+                                  ? JSON.parse(selectedCSR.san_upn)
+                                  : selectedCSR.san_upn
+                                if (Array.isArray(upns) && upns.length > 0) {
+                                  foundUpn = upns[0]
+                                }
+                              } catch { /* ignore parse errors */ }
+                            }
+                            // Priority 2: SAN email
+                            if (!foundUpn && selectedCSR.san_email) {
                               try {
                                 const emails = typeof selectedCSR.san_email === 'string'
                                   ? JSON.parse(selectedCSR.san_email)
@@ -925,7 +937,7 @@ MIICijCCAXICAQAwRTELMAkGA1UEBhMCVVMx...
                                 }
                               } catch { /* ignore parse errors */ }
                             }
-                            // Fall back to subject emailAddress
+                            // Priority 3: subject emailAddress
                             if (!foundUpn && selectedCSR.email) {
                               foundUpn = selectedCSR.email
                             }
@@ -1066,6 +1078,7 @@ MIICijCCAXICAQAwRTELMAkGA1UEBhMCVVMx...
                       { value: 'IP', label: 'IP' },
                       { value: 'Email', label: 'Email' },
                       { value: 'URI', label: 'URI' },
+                      { value: 'UPN', label: 'UPN' },
                     ]}
                     value={san.type}
                     onChange={(val) => {
@@ -1082,7 +1095,13 @@ MIICijCCAXICAQAwRTELMAkGA1UEBhMCVVMx...
                       updated[i].value = e.target.value
                       setGenSans(updated)
                     }}
-                    placeholder={san.type === 'DNS' ? 'example.com' : san.type === 'IP' ? '10.0.0.1' : san.type === 'Email' ? 'admin@example.com' : 'https://example.com'}
+                    placeholder={
+                      san.type === 'DNS' ? 'example.com'
+                      : san.type === 'IP' ? '10.0.0.1'
+                      : san.type === 'Email' ? 'admin@example.com'
+                      : san.type === 'UPN' ? 'user@domain.local'
+                      : 'https://example.com'
+                    }
                     className="flex-1"
                   />
                   {genSans.length > 1 && (

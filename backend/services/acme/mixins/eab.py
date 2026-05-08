@@ -76,16 +76,27 @@ class EabMixin:
             # Decode the HMAC key
             hmac_key = base64.urlsafe_b64decode(hmac_key_b64 + '==')
             
-            # Verify the payload is the account JWK
+            # Verify the payload is the account JWK (RFC 8555 §7.3.4):
+            # "The 'payload' field of the JWS object MUST contain the public
+            # key of the ACME account being created. This is the same value
+            # as the 'jwk' field of the outer JWS."
             payload_b64 = eab_data['payload']
             payload_bytes = base64.urlsafe_b64decode(payload_b64 + '==')
             try:
                 payload_jwk = json.loads(payload_bytes)
-                # The payload should be the account public key
-                if payload_jwk.get('kty') != account_jwk.get('kty'):
-                    return False, "EAB payload does not match account key"
             except Exception:
                 return False, "EAB payload is not valid JSON"
+
+            # Full JWK match — compare canonical thumbprints (RFC 7638) so
+            # equivalent JWKs differing only by member ordering still match,
+            # but an attacker cannot swap the account key while keeping the
+            # same kty.
+            try:
+                if self._compute_jwk_thumbprint(payload_jwk) != \
+                   self._compute_jwk_thumbprint(account_jwk):
+                    return False, "EAB payload does not match account key"
+            except (KeyError, ValueError) as e:
+                return False, f"EAB payload JWK invalid: {e}"
             
             # Verify HMAC signature
             signing_input = f"{protected_b64}.{payload_b64}".encode('ascii')

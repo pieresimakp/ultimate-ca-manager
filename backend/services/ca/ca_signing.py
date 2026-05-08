@@ -83,7 +83,8 @@ class CASigningMixin:
             cert_pem_bytes if isinstance(cert_pem_bytes, bytes) else cert_pem_bytes.encode(),
             default_backend()
         )
-        serial = format(cert_obj.serial_number, 'X')
+        serial = format(cert_obj.serial_number, 'X')  # legacy hex form, kept for return tuple
+        serial_decimal = str(cert_obj.serial_number)  # canonical DB form
 
         # Store certificate in database
         cert_pem_str = cert_pem_bytes.decode('utf-8') if isinstance(cert_pem_bytes, bytes) else cert_pem_bytes
@@ -117,9 +118,9 @@ class CASigningMixin:
         san_dns, san_ip, san_email = [], [], []
         try:
             san_ext = cert_obj.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
-            san_dns = [n.value for n in san_ext.value.get_values_for_type(x509.DNSName)]
+            san_dns = list(san_ext.value.get_values_for_type(x509.DNSName))
             san_ip = [str(n) for n in san_ext.value.get_values_for_type(x509.IPAddress)]
-            san_email = [n.value for n in san_ext.value.get_values_for_type(x509.RFC822Name)]
+            san_email = list(san_ext.value.get_values_for_type(x509.RFC822Name))
         except x509.ExtensionNotFound:
             pass
 
@@ -136,7 +137,7 @@ class CASigningMixin:
             subject=cert_obj.subject.rfc4514_string(),
             subject_cn=cn,
             issuer=cert_obj.issuer.rfc4514_string(),
-            serial_number=serial,
+            serial_number=serial_decimal,
             aki=cert_aki,
             ski=cert_ski,
             valid_from=not_before,
@@ -150,7 +151,12 @@ class CASigningMixin:
 
         # Increment CA serial
         ca.serial = (ca.serial or 0) + 1
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as _commit_err:
+            db.session.rollback()
+            logger.error(f"Commit failed in services/ca/ca_signing.py:153: {_commit_err}", exc_info=True)
+            raise
 
         logger.info(f"Signed CSR via {source}: CN={cn}, serial={serial}, CA={ca.descr}")
 

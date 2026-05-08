@@ -28,6 +28,7 @@ class CSROperationsMixin:
         san_ip: Optional[List[str]] = None,
         san_email: Optional[List[str]] = None,
         san_uri: Optional[List[str]] = None,
+        san_upn: Optional[List[str]] = None,
     ) -> Tuple[bytes, bytes]:
         """Generate a Certificate Signing Request."""
         # Generate private key
@@ -49,6 +50,11 @@ class CSROperationsMixin:
             san_list.extend([x509.RFC822Name(email) for email in san_email])
         if san_uri:
             san_list.extend([x509.UniformResourceIdentifier(uri) for uri in san_uri])
+        if san_upn:
+            from utils.upn_san import build_upn_other_name
+            for upn in san_upn:
+                if upn and upn.strip():
+                    san_list.append(build_upn_other_name(upn.strip()))
 
         if san_list:
             builder = builder.add_extension(

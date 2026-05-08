@@ -124,13 +124,19 @@ class HsmService:
         provider = HsmProvider(
             name=name,
             type=provider_type,
-            config=json.dumps(config),
+            config='{}',
             status='unknown',
             created_by=created_by
         )
+        provider.set_config(config or {})
         
         db.session.add(provider)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as _commit_err:
+            db.session.rollback()
+            logger.error(f"Commit failed in services/hsm/hsm_service.py:133: {_commit_err}", exc_info=True)
+            raise
         
         logger.info(f"Created HSM provider: {name} ({provider_type})")
         return provider
@@ -166,14 +172,22 @@ class HsmService:
                 raise ValueError(f"Provider with name '{name}' already exists")
             provider.name = name
         
-        if config:
-            provider.config = json.dumps(config)
+        if config is not None:
+            # set_config encrypts sensitive fields and drops mask sentinels
+            # ('***'/'********') so an operator updating non-secret fields
+            # via the UI doesn't wipe stored credentials.
+            provider.set_config(config)
             # Reset status when config changes
             provider.status = 'unknown'
             provider.error_message = None
         
         provider.updated_at = utc_now()
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as _commit_err:
+            db.session.rollback()
+            logger.error(f"Commit failed in services/hsm/hsm_service.py:176: {_commit_err}", exc_info=True)
+            raise
         
         logger.info(f"Updated HSM provider: {provider.name}")
         return provider
@@ -198,7 +212,12 @@ class HsmService:
         
         name = provider.name
         db.session.delete(provider)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as _commit_err:
+            db.session.rollback()
+            logger.error(f"Commit failed in services/hsm/hsm_service.py:201: {_commit_err}", exc_info=True)
+            raise
         
         logger.info(f"Deleted HSM provider: {name}")
         return True
@@ -559,13 +578,14 @@ class HsmService:
             provider = HsmProvider(
                 name='SoftHSM-Default',
                 type='pkcs11',
-                config=json.dumps({
-                    'library_path': lib_path,
-                    'token_label': 'UCM-Default',
-                    'pin': pin,
-                }),
+                config='{}',
                 status='connected',
             )
+            provider.set_config({
+                'library_path': lib_path,
+                'token_label': 'UCM-Default',
+                'pin': pin,
+            })
             db.session.add(provider)
             db.session.commit()
             logger.info("Auto-registered SoftHSM provider 'SoftHSM-Default'")

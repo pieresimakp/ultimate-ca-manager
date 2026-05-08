@@ -16,6 +16,13 @@ from services.import_service import (
     parse_certificate_file, extract_cert_info, find_existing_ca,
     serialize_cert_to_pem, serialize_key_to_pem
 )
+try:
+    from security.encryption import encrypt_private_key
+    HAS_ENCRYPTION = True
+except ImportError:
+    HAS_ENCRYPTION = False
+    def encrypt_private_key(data):
+        return data
 from services.audit_service import AuditService
 from services.notification_service import NotificationService
 from models import CA, db
@@ -74,6 +81,11 @@ def import_ca():
         # Serialize to PEM
         cert_pem = serialize_cert_to_pem(cert)
         key_pem = serialize_key_to_pem(private_key) if import_key else None
+        # Encrypt private key at rest (matches CA creation code path).
+        encrypted_prv = (
+            encrypt_private_key(base64.b64encode(key_pem).decode('utf-8'))
+            if key_pem else None
+        )
 
         # Check for existing CA with same subject
         existing_ca = find_existing_ca(cert_info)
@@ -89,7 +101,7 @@ def import_ca():
             existing_ca.descr = name or cert_info['cn'] or existing_ca.descr
             existing_ca.crt = base64.b64encode(cert_pem).decode('utf-8')
             if key_pem:
-                existing_ca.prv = base64.b64encode(key_pem).decode('utf-8')
+                existing_ca.prv = encrypted_prv
             existing_ca.issuer = cert_info['issuer']
             existing_ca.valid_from = cert_info['valid_from']
             existing_ca.valid_to = cert_info['valid_to']
@@ -115,7 +127,7 @@ def import_ca():
             refid=refid,
             descr=name or cert_info['cn'] or filename,
             crt=base64.b64encode(cert_pem).decode('utf-8'),
-            prv=base64.b64encode(key_pem).decode('utf-8') if key_pem else None,
+            prv=encrypted_prv,
             serial=0,
             subject=cert_info['subject'],
             issuer=cert_info['issuer'],

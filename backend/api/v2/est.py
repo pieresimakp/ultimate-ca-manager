@@ -65,18 +65,34 @@ def update_est_config():
     if 'enabled' in data:
         set_config('est_enabled', 'true' if data['enabled'] else 'false')
     if 'ca_refid' in data:
+        # Validate CA exists if a non-empty refid was provided
+        if data['ca_refid']:
+            if not CA.query.filter_by(refid=data['ca_refid']).first():
+                return error_response('CA not found', 404)
         set_config('est_ca_refid', data['ca_refid'] or '')
     if 'ca_id' in data:
         # Look up refid from CA id
-        ca = CA.query.get(data['ca_id']) if data['ca_id'] else None
-        set_config('est_ca_refid', ca.refid if ca else '')
+        if data['ca_id']:
+            ca = CA.query.get(data['ca_id'])
+            if not ca:
+                return error_response('CA not found', 404)
+            set_config('est_ca_refid', ca.refid)
+        else:
+            set_config('est_ca_refid', '')
     if 'username' in data:
         set_config('est_username', data['username'])
     if 'password' in data and data['password']:
         from werkzeug.security import generate_password_hash
         set_config('est_password', generate_password_hash(data['password']))
     if 'validity_days' in data:
-        set_config('est_validity_days', str(data['validity_days']))
+        # Bound to PKI-internal cap (10 years).
+        try:
+            vd = int(data['validity_days'])
+        except (TypeError, ValueError):
+            return error_response('validity_days must be an integer', 400)
+        if vd < 1 or vd > 3650:
+            return error_response('validity_days must be between 1 and 3650', 400)
+        set_config('est_validity_days', str(vd))
 
     ok, _err = safe_commit(logger, "Failed to update EST configuration")
     if not ok:

@@ -9,7 +9,8 @@ from flask import request
 from api.v2.acme_client import bp, _set_config
 from auth.unified import require_auth
 from utils.response import success_response, error_response
-from models import db
+from utils.db_transaction import safe_commit
+from models import db, SystemConfig
 from services.acme.acme_client_service import AcmeClientService
 from services.audit_service import AuditService
 
@@ -35,8 +36,13 @@ def register_account():
     email = data.get('email')
     if not email:
         return error_response('Email is required', 400)
+    if not isinstance(email, str) or len(email) > 254:
+        return error_response('Email is invalid or too long (max 254 chars)', 400)
 
-    environment = data.get('environment', 'staging')
+    environment = data.get('environment')
+    if not environment:
+        env_cfg = SystemConfig.query.filter_by(key='acme.client.environment').first()
+        environment = env_cfg.value if env_cfg else 'staging'
     if environment not in ['staging', 'production']:
         return error_response('Environment must be staging or production', 400)
 
@@ -47,7 +53,14 @@ def register_account():
         if success:
             # Save email as default
             _set_config('acme.client.email', email, 'ACME client contact email')
-            db.session.commit()
+            ok, _err = safe_commit(logger, "Failed to persist ACME client email")
+            if not ok:
+                return _err
+
+            logger.info(
+                f"ACME account registered: {email} → {client.account.label} "
+                f"({client.account.directory_url})"
+            )
 
             AuditService.log_action(
                 action='acme_account_register',

@@ -51,31 +51,32 @@ class AcmeClientService:
     # Well-known ACME directories
     LE_STAGING = "https://acme-staging-v02.api.letsencrypt.org/directory"
     LE_PRODUCTION = "https://acme-v02.api.letsencrypt.org/directory"
-    
-    def __init__(self, environment: str = 'staging', directory_url: str = None):
+
+    def __init__(self, environment: str = None, directory_url: str = None,
+                 account: 'AcmeClientAccount' = None):
         """
         Initialize ACME client.
-        
-        Args:
-            environment: 'staging' or 'production' (for LE; ignored if directory_url set)
-            directory_url: Custom ACME directory URL (overrides environment)
+
+        One of three resolution paths (priority order):
+          1. `account=` explicit AcmeClientAccount instance.
+          2. `directory_url=` explicit URL → lookup or create matching account.
+          3. `environment=` 'staging'|'production' → lookup or create LE account.
+          4. Neither given → use the row marked is_default=True.
+
+        The resolved account becomes the single source of truth for directory URL,
+        account key, account URL, EAB credentials, and key algorithm. The
+        `environment` attribute is derived from the URL (staging/production/custom)
+        and kept for backward compat with AcmeClientOrder.environment.
         """
-        self.environment = environment
-        
-        # Custom directory URL takes precedence
-        if directory_url:
-            self.directory_url = directory_url
-        else:
-            # Check for configured custom URL
-            custom_url = self._get_custom_directory_url()
-            if custom_url:
-                self.directory_url = custom_url
-            else:
-                self.directory_url = self.LE_PRODUCTION if environment == 'production' else self.LE_STAGING
-        
+        from models.acme_client_account import AcmeClientAccount
+
+        self.account = self._resolve_account(account, directory_url, environment)
+        self.directory_url = self.account.directory_url
+        self.environment = self.account.derived_environment()
         self.directory = None
-        self.account_key = None
-        self.account_url = None
+        self.account_key = None  # lazy-loaded from self.account.account_key
+        self.account_url = self.account.account_url
+
         self.verify_ssl = self._get_verify_ssl()
         self.session = create_session(verify_ssl=self.verify_ssl)
         self.session.headers['User-Agent'] = 'UCM-ACME-Client/2.1'
@@ -86,10 +87,73 @@ class AcmeClientService:
             )
     
     @staticmethod
-    def _get_custom_directory_url() -> Optional[str]:
-        """Get custom ACME directory URL from settings"""
-        cfg = SystemConfig.query.filter_by(key='acme.client.directory_url').first()
-        return cfg.value if cfg and cfg.value else None
+    def _resolve_account(account, directory_url, environment):
+        """Resolve constructor args to a persisted AcmeClientAccount row.
+
+        Priority: explicit account > directory_url > environment > default.
+        Creates a placeholder row if none matches (label/email filled with
+        defaults, account_url/account_key empty until registration).
+        """
+        from models.acme_client_account import AcmeClientAccount
+
+        if account is not None:
+            return account
+
+        target_url = None
+        target_label = None
+        if directory_url:
+            target_url = directory_url
+            if directory_url == AcmeClientAccount.LE_STAGING_URL:
+                target_label = "Let's Encrypt Staging"
+            elif directory_url == AcmeClientAccount.LE_PRODUCTION_URL:
+                target_label = "Let's Encrypt Production"
+            else:
+                target_label = f"Custom ({directory_url[:40]})"
+        elif environment == 'production':
+            target_url = AcmeClientAccount.LE_PRODUCTION_URL
+            target_label = "Let's Encrypt Production"
+        elif environment == 'staging':
+            target_url = AcmeClientAccount.LE_STAGING_URL
+            target_label = "Let's Encrypt Staging"
+        else:
+            # No hint → use default-marked row
+            default = AcmeClientAccount.query.filter_by(is_default=True).first()
+            if default:
+                return default
+            # No default → fall back to staging
+            target_url = AcmeClientAccount.LE_STAGING_URL
+            target_label = "Let's Encrypt Staging"
+
+        existing = AcmeClientAccount.query.filter_by(directory_url=target_url).first()
+        if existing:
+            return existing
+
+        # Read default email from legacy SystemConfig (1-release back-compat),
+        # else fall back to a placeholder. Email gets overwritten at registration.
+        email_cfg = SystemConfig.query.filter_by(key='acme.client.email').first()
+        email = (email_cfg.value if email_cfg and email_cfg.value else 'admin@localhost')
+        alg_cfg = SystemConfig.query.filter_by(key='acme.client.account_key_type').first()
+        algorithm = (alg_cfg.value if alg_cfg and alg_cfg.value in ACCOUNT_KEY_TYPES else 'ES256')
+
+        new_account = AcmeClientAccount(
+            directory_url=target_url,
+            label=target_label,
+            email=email,
+            account_key_algorithm=algorithm,
+            is_default=(AcmeClientAccount.query.count() == 0),
+        )
+        db.session.add(new_account)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            # Race: another request created it. Re-query.
+            existing = AcmeClientAccount.query.filter_by(directory_url=target_url).first()
+            if existing:
+                return existing
+            raise
+        logger.info(f"Created placeholder ACME account: {target_label} ({target_url})")
+        return new_account
 
     @staticmethod
     def _get_verify_ssl() -> bool:
@@ -137,57 +201,42 @@ class AcmeClientService:
         """Load or create account private key (RSA or EC based on settings)"""
         if self.account_key:
             return self.account_key
-        
-        config_key = f'acme.client.{self.environment}.account_key'
-        config = SystemConfig.query.filter_by(key=config_key).first()
-        
-        if config:
+
+        if self.account.account_key:
             # Stored value may be encrypted (ENC:...) or legacy plain PEM —
             # decrypt_text() is transparent for both cases.
             from security.encryption import decrypt_text
             self.account_key = serialization.load_pem_private_key(
-                decrypt_text(config.value).encode(),
+                decrypt_text(self.account.account_key).encode(),
                 password=None,
                 backend=default_backend()
             )
-        else:
-            # Determine account key type from settings
-            acct_alg = self._get_account_key_algorithm()
-            key_info = ACCOUNT_KEY_TYPES.get(acct_alg, ACCOUNT_KEY_TYPES['RS256'])
-            self.account_key = key_info['generate']()
-            
-            pem = self.account_key.private_bytes(
-                encoding=Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ).decode()
+            return self.account_key
 
-            # Encrypt at rest with the master key (no-op if encryption disabled).
-            # Use encrypt_text (not encrypt_private_key) — the latter expects
-            # base64-encoded input and crashes on raw PEM (regression #105).
-            from security.encryption import encrypt_text
-            stored_value = encrypt_text(pem)
+        # Generate new key for this account
+        acct_alg = self.account.account_key_algorithm if self.account.account_key_algorithm in ACCOUNT_KEY_TYPES else 'ES256'
+        key_info = ACCOUNT_KEY_TYPES.get(acct_alg, ACCOUNT_KEY_TYPES['RS256'])
+        self.account_key = key_info['generate']()
 
-            db.session.add(SystemConfig(
-                key=config_key,
-                value=stored_value,
-                description=f"ACME client account key ({self.environment})"
-            ))
-            try:
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                logger.error(f"Failed to save ACME account key: {e}")
-                raise
-            logger.info(f"Generated new ACME account key ({acct_alg}) for {self.environment}")
+        pem = self.account_key.private_bytes(
+            encoding=Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode()
+
+        # Encrypt at rest with the master key (no-op if encryption disabled).
+        from security.encryption import encrypt_text
+        self.account.account_key = encrypt_text(pem)
+        self.account.account_key_algorithm = acct_alg
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to save ACME account key: {e}")
+            raise
+        logger.info(f"Generated new ACME account key ({acct_alg}) for {self.account.label}")
         
         return self.account_key
-    
-    def _get_account_key_algorithm(self) -> str:
-        """Get the configured account key algorithm"""
-        cfg = SystemConfig.query.filter_by(key='acme.client.account_key_type').first()
-        alg = cfg.value if cfg else 'ES256'
-        return alg if alg in ACCOUNT_KEY_TYPES else 'ES256'
     
     def _detect_key_algorithm(self, key) -> str:
         """Detect the JWS algorithm for a given key"""
@@ -205,26 +254,13 @@ class AcmeClientService:
         """Get stored account URL"""
         if self.account_url:
             return self.account_url
-        
-        config_key = f'acme.client.{self.environment}.account_url'
-        config = SystemConfig.query.filter_by(key=config_key).first()
-        if config:
-            self.account_url = config.value
+        self.account_url = self.account.account_url
         return self.account_url
     
     def _save_account_url(self, url: str) -> None:
         """Save account URL to database"""
         self.account_url = url
-        config_key = f'acme.client.{self.environment}.account_url'
-        config = SystemConfig.query.filter_by(key=config_key).first()
-        if config:
-            config.value = url
-        else:
-            db.session.add(SystemConfig(
-                key=config_key,
-                value=url,
-                description=f"ACME client account URL ({self.environment})"
-            ))
+        self.account.account_url = url
         try:
             db.session.commit()
         except Exception as e:
@@ -419,12 +455,20 @@ class AcmeClientService:
             resp = self._post(new_account_url, payload, use_jwk=True)
             
             if resp.status_code in [200, 201]:
-                account_url = resp.headers.get('Location')
-                self._save_account_url(account_url)
-                
-                status = "created" if resp.status_code == 201 else "existing"
-                logger.info(f"ACME account {status}: {account_url}")
-                return True, f"Account {status} successfully", account_url
+                 account_url = resp.headers.get('Location')
+                 self._save_account_url(account_url)
+                 
+                 # Persist the email used for registration
+                 self.account.email = email
+                 try:
+                     db.session.commit()
+                 except Exception as e:
+                     db.session.rollback()
+                     logger.error(f"Failed to update account email: {e}")
+                 
+                 status = "created" if resp.status_code == 201 else "existing"
+                 logger.info(f"ACME account {status}: {account_url}")
+                 return True, f"Account {status} successfully", account_url
             else:
                 error = resp.json()
                 return False, f"Account registration failed: {error.get('detail', 'Unknown error')}", None
@@ -434,11 +478,9 @@ class AcmeClientService:
             return False, str(e), None
     
     def _get_eab_credentials(self) -> Tuple[Optional[str], Optional[str]]:
-        """Get EAB credentials from settings"""
-        kid_cfg = SystemConfig.query.filter_by(key='acme.client.eab_kid').first()
-        hmac_cfg = SystemConfig.query.filter_by(key='acme.client.eab_hmac_key').first()
-        kid = kid_cfg.value if kid_cfg and kid_cfg.value else None
-        hmac_key = hmac_cfg.value if hmac_cfg and hmac_cfg.value else None
+        """Get EAB credentials for this account"""
+        kid = self.account.eab_kid or None
+        hmac_key = self.account.eab_hmac_key or None
         return kid, hmac_key
     
     def _build_eab_payload(self, eab_kid: str, eab_hmac_key: str, url: str) -> dict:

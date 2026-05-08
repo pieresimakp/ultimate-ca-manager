@@ -10,8 +10,9 @@ from utils.response import success_response, error_response, created_response, n
 from utils.db_transaction import safe_commit
 from utils.file_validation import validate_upload, JSON_EXTENSIONS
 from utils.sanitize import sanitize_filename
-from models import db
+from models import db, Certificate
 from models.certificate_template import CertificateTemplate
+from models.policy import CertificatePolicy
 from services.audit_service import AuditService
 from datetime import datetime
 import traceback
@@ -21,6 +22,50 @@ import json
 from utils.datetime_utils import utc_now
 
 bp = Blueprint('templates_v2', __name__)
+
+
+# Hard caps mirrored from cert_create.py
+_MAX_VALIDITY_DAYS = 3650
+_MIN_VALIDITY_DAYS = 1
+_VALID_KEY_TYPES = {
+    'RSA-2048', 'RSA-3072', 'RSA-4096',
+    'EC-P256', 'EC-P384', 'EC-P521',
+    'ED25519',
+    # legacy lowercase forms used by some import payloads
+    'rsa:2048', 'rsa:3072', 'rsa:4096',
+    'ec:p256', 'ec:p384', 'ec:p521',
+}
+_VALID_DIGESTS = {'sha256', 'sha384', 'sha512'}
+_VALID_TEMPLATE_TYPES = {
+    'web_server', 'email', 'vpn_server', 'vpn_client',
+    'code_signing', 'client_auth', 'piv', 'custom',
+}
+
+
+def _validate_template_payload(data, *, partial=False):
+    """Returns (ok, err_msg). Sanitises validity_days/key_type/digest/template_type."""
+    if 'validity_days' in data:
+        try:
+            v = int(data['validity_days'])
+        except (TypeError, ValueError):
+            return False, 'validity_days must be an integer'
+        if v < _MIN_VALIDITY_DAYS or v > _MAX_VALIDITY_DAYS:
+            return False, f'validity_days must be between {_MIN_VALIDITY_DAYS} and {_MAX_VALIDITY_DAYS}'
+        data['validity_days'] = v
+    elif not partial:
+        # default applied at object creation, no-op
+        pass
+    if 'key_type' in data and data['key_type']:
+        if data['key_type'] not in _VALID_KEY_TYPES:
+            return False, f'Unsupported key_type: {data["key_type"]}'
+    if 'digest' in data and data['digest']:
+        if data['digest'].lower() not in _VALID_DIGESTS:
+            return False, f'Unsupported digest: {data["digest"]} (allowed: {", ".join(sorted(_VALID_DIGESTS))})'
+        data['digest'] = data['digest'].lower()
+    if 'template_type' in data and data['template_type']:
+        if data['template_type'] not in _VALID_TEMPLATE_TYPES:
+            return False, f'Invalid template type. Must be one of: {", ".join(sorted(_VALID_TEMPLATE_TYPES))}'
+    return True, None
 
 
 @bp.route('/api/v2/templates', methods=['GET'])
@@ -102,11 +147,11 @@ def create_template():
     # Check if template name exists
     if CertificateTemplate.query.filter_by(name=data['name']).first():
         return error_response('Template name already exists', 409)
-    
-    # Validate template type
-    valid_types = ['web_server', 'email', 'vpn_server', 'vpn_client', 'code_signing', 'client_auth', 'piv', 'custom']
-    if data['template_type'] not in valid_types:
-        return error_response(f'Invalid template type. Must be one of: {", ".join(valid_types)}', 400)
+
+    # Validate template type / key_type / digest / validity bounds
+    ok, err = _validate_template_payload(data)
+    if not ok:
+        return error_response(err, 400)
     
     # Prepare extensions template
     extensions = data.get('extensions_template', {})
@@ -202,7 +247,12 @@ def update_template(template_id):
         return error_response('Cannot modify system templates', 403)
     
     data = request.get_json()
-    
+
+    # Validate any provided fields (validity bounds + enums)
+    ok, err = _validate_template_payload(data, partial=True)
+    if not ok:
+        return error_response(err, 400)
+
     # Update fields
     if 'name' in data:
         # Check if name already used by another template
@@ -218,19 +268,16 @@ def update_template(template_id):
         template.description = data['description']
     
     if 'template_type' in data:
-        valid_types = ['web_server', 'email', 'vpn_server', 'vpn_client', 'code_signing', 'client_auth', 'piv', 'custom']
-        if data['template_type'] not in valid_types:
-            return error_response(f'Invalid template type', 400)
         template.template_type = data['template_type']
-    
+
     if 'key_type' in data:
         template.key_type = data['key_type']
-    
+
     if 'validity_days' in data:
-        template.validity_days = int(data['validity_days'])
-    
+        template.validity_days = data['validity_days']  # already coerced to int by _validate_template_payload
+
     if 'digest' in data:
-        template.digest = data['digest']
+        template.digest = data['digest']  # already lowercased
     
     if 'dn_template' in data:
         template.dn_template = json.dumps(data['dn_template'])
@@ -279,7 +326,19 @@ def delete_template(template_id):
     # Prevent deleting system templates
     if template.is_system:
         return error_response('Cannot delete system templates', 403)
-    
+
+    # Block deletion if template is referenced by certificates or policies (no FK cascade)
+    cert_count = Certificate.query.filter_by(template_id=template_id).count()
+    if cert_count > 0:
+        return error_response(
+            f'Cannot delete: template is used by {cert_count} certificate(s)', 409
+        )
+    policy_count = CertificatePolicy.query.filter_by(template_id=template_id).count()
+    if policy_count > 0:
+        return error_response(
+            f'Cannot delete: template is used by {policy_count} policy/policies', 409
+        )
+
     template_name = template.name
     
     try:
@@ -326,6 +385,14 @@ def bulk_delete_templates():
                 continue
             if template.is_system:
                 results['failed'].append({'id': template_id, 'error': 'Cannot delete system template'})
+                continue
+            cert_count = Certificate.query.filter_by(template_id=template_id).count()
+            if cert_count > 0:
+                results['failed'].append({'id': template_id, 'error': f'In use by {cert_count} certificate(s)'})
+                continue
+            policy_count = CertificatePolicy.query.filter_by(template_id=template_id).count()
+            if policy_count > 0:
+                results['failed'].append({'id': template_id, 'error': f'In use by {policy_count} policy/policies'})
                 continue
             template_name = template.name
             db.session.delete(template)
@@ -514,7 +581,13 @@ def import_template():
             if not tpl_data.get('name'):
                 skipped.append('Template without name')
                 continue
-            
+
+            # Validate per-item; reject the item but continue with the rest
+            ok, err = _validate_template_payload(tpl_data, partial=True)
+            if not ok:
+                skipped.append(f"{tpl_data['name']} ({err})")
+                continue
+
             # Check for existing
             existing = CertificateTemplate.query.filter_by(name=tpl_data['name']).first()
             
@@ -538,16 +611,17 @@ def import_template():
                 existing.is_active = tpl_data.get('is_active', existing.is_active)
                 updated.append(existing.name)
             else:
-                # Create new
+                # Create new — _validate_template_payload already enforced enums + bounds.
+                # Default template_type=custom (was 'server', not in valid set).
                 template = CertificateTemplate(
                     name=tpl_data['name'],
                     description=tpl_data.get('description', ''),
-                    template_type=tpl_data.get('template_type', 'server'),
-                    key_type=tpl_data.get('key_type', 'rsa:2048'),
+                    template_type=tpl_data.get('template_type', 'custom'),
+                    key_type=tpl_data.get('key_type', 'RSA-2048'),
                     validity_days=tpl_data.get('validity_days', 365),
                     digest=tpl_data.get('digest', 'sha256'),
-                    dn_template=tpl_data.get('dn_template'),
-                    extensions_template=tpl_data.get('extensions_template'),
+                    dn_template=tpl_data.get('dn_template') or '{}',
+                    extensions_template=tpl_data.get('extensions_template') or '{}',
                     is_system=False,
                     is_active=tpl_data.get('is_active', True),
                 )

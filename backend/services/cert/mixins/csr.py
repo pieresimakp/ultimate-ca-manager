@@ -43,6 +43,7 @@ class CSRMixin:
         san_ip: Optional[List[str]] = None,
         san_email: Optional[List[str]] = None,
         san_uri: Optional[List[str]] = None,
+        san_upn: Optional[List[str]] = None,
         username: str = 'system'
     ) -> Certificate:
         """
@@ -57,6 +58,7 @@ class CSRMixin:
             san_ip: IP SANs
             san_email: Email SANs
             san_uri: URI SANs
+            san_upn: UPN SANs (Microsoft User Principal Name, OID 1.3.6.1.4.1.311.20.2.3)
             username: User generating CSR
 
         Returns:
@@ -73,11 +75,23 @@ class CSRMixin:
             san_dns=san_dns,
             san_ip=san_ip,
             san_email=san_email,
-            san_uri=san_uri
+            san_uri=san_uri,
+            san_upn=san_upn
         )
 
         # Parse CSR
         csr = x509.load_pem_x509_csr(csr_pem, default_backend())
+
+        # Encrypt private key at rest if encryption is enabled.
+        # Without this, generated CSR keys (and any future intermediate CA
+        # promoted from this record) sit base64-only in the DB.
+        prv_encoded = base64.b64encode(key_pem).decode('utf-8')
+        try:
+            from security.encryption import key_encryption
+            if key_encryption.is_enabled:
+                prv_encoded = key_encryption.encrypt(prv_encoded)
+        except ImportError:
+            pass
 
         # Create certificate record (CSR only, no cert yet)
         certificate = Certificate(
@@ -85,18 +99,24 @@ class CSRMixin:
             descr=descr,
             caref=None,  # Not signed yet
             csr=base64.b64encode(csr_pem).decode('utf-8'),
-            prv=base64.b64encode(key_pem).decode('utf-8'),
+            prv=prv_encoded,
             subject=csr.subject.rfc4514_string(),
             san_dns=json.dumps(san_dns) if san_dns else None,
             san_ip=json.dumps(san_ip) if san_ip else None,
             san_email=json.dumps(san_email) if san_email else None,
             san_uri=json.dumps(san_uri) if san_uri else None,
+            san_upn=json.dumps(san_upn) if san_upn else None,
             imported_from='csr_generated',
             created_by=username
         )
 
         db.session.add(certificate)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as _commit_err:
+            db.session.rollback()
+            logger.error(f"Commit failed in services/cert/mixins/csr.py:103: {_commit_err}", exc_info=True)
+            raise
 
         # Audit log
         from services.audit_service import AuditService
@@ -171,6 +191,18 @@ class CSRMixin:
             csr_pem = csr_data.encode('utf-8')
         else:
             csr_pem = base64.b64decode(csr_data)
+
+        # RFC 2986 §4.2 — validate the CSR's self-signature before signing.
+        # cryptography.load_pem_x509_csr does NOT verify the signature, so a
+        # tampered/forged CSR (POP failure) would otherwise be silently signed.
+        try:
+            csr_obj = x509.load_pem_x509_csr(csr_pem, default_backend())
+            if not csr_obj.is_signature_valid:
+                raise ValueError("CSR signature is invalid (proof-of-possession failed)")
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"Failed to verify CSR signature: {e}")
 
         # Sign CSR
         cdp_urls = [url.replace('{ca_refid}', ca.refid) for url in ca.get_cdp_urls()] if ca.cdp_enabled else None
@@ -262,7 +294,7 @@ class CSRMixin:
             ski_hex = None
             try:
                 ski_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_KEY_IDENTIFIER)
-                ski_hex = ski_ext.value.digest.hex(':')
+                ski_hex = ski_ext.value.digest.hex(':').upper()
             except x509.ExtensionNotFound:
                 pass
 
@@ -296,7 +328,12 @@ class CSRMixin:
             # Remove the certificate record — it's now a CA
             db.session.delete(certificate)
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as _commit_err:
+            db.session.rollback()
+            logger.error(f"Commit failed in services/cert/mixins/csr.py:303: {_commit_err}", exc_info=True)
+            raise
 
         # Audit log with centralized service
         from services.audit_service import AuditService

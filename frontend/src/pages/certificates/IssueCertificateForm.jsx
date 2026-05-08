@@ -159,12 +159,19 @@ export function IssueCertificateForm({ cas, initialData, onSubmit, onCancel, t }
       { value: 'ip', label: t('certificates.sanIp') },
       { value: 'email', label: t('certificates.sanEmail') },
       { value: 'uri', label: t('certificates.sanUri') },
+      { value: 'upn', label: t('certificates.sanUpn') },
     ]
     return base
   }, [t])
 
   const sanPlaceholder = (type) => {
-    const map = { dns: t('certificates.sanDnsPlaceholder'), ip: t('certificates.sanIpPlaceholder'), email: t('certificates.sanEmailPlaceholder'), uri: t('certificates.sanUriPlaceholder') }
+    const map = {
+      dns: t('certificates.sanDnsPlaceholder'),
+      ip: t('certificates.sanIpPlaceholder'),
+      email: t('certificates.sanEmailPlaceholder'),
+      uri: t('certificates.sanUriPlaceholder'),
+      upn: t('certificates.sanUpnPlaceholder'),
+    }
     return map[type] || ''
   }
 
@@ -210,7 +217,7 @@ export function IssueCertificateForm({ cas, initialData, onSubmit, onCancel, t }
   const handleSubmit = (e) => {
     e.preventDefault()
     // Build SAN arrays
-    const san_dns = [], san_ip = [], san_email = [], san_uri = []
+    const san_dns = [], san_ip = [], san_email = [], san_uri = [], san_upn = []
     sans.forEach(s => {
       const v = s.value.trim()
       if (!v) return
@@ -218,6 +225,7 @@ export function IssueCertificateForm({ cas, initialData, onSubmit, onCancel, t }
       else if (s.type === 'ip') san_ip.push(v)
       else if (s.type === 'email') san_email.push(v)
       else if (s.type === 'uri') san_uri.push(v)
+      else if (s.type === 'upn') san_upn.push(v)
     })
 
     // Calculate validity_days from date if in date mode
@@ -246,6 +254,7 @@ export function IssueCertificateForm({ cas, initialData, onSubmit, onCancel, t }
       ...(san_ip.length && { san_ip }),
       ...(san_email.length && { san_email }),
       ...(san_uri.length && { san_uri }),
+      ...(san_upn.length && { san_upn }),
       ...(selectedTemplate && { template_id: parseInt(selectedTemplate) }),
       ...(formData.ocsp_must_staple && { ocsp_must_staple: true }),
       ...(formData.extra_ekus?.length && { extra_ekus: formData.extra_ekus }),

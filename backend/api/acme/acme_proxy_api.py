@@ -120,13 +120,34 @@ def new_account():
     The proxy stores client accounts locally for JWS verification on
     subsequent requests, while using a shared upstream account for
     actual certificate issuance.
+
+    Issue #112: enforce local UCM EAB policy here, BEFORE creating the
+    account. Upstream LE doesn't require EAB so we cannot rely on it.
     """
+    from models import SystemConfig
+
     is_valid, payload, jwk, err = verify_proxy_jws()
     if not is_valid:
         return proxy_error("malformed", err)
 
     if not jwk:
         return proxy_error("malformed", "Missing JWK in protected header")
+
+    # === EAB enforcement (issue #112) ===
+    eab_data = payload.get('externalAccountBinding') if isinstance(payload, dict) else None
+    eab_cfg = SystemConfig.query.filter_by(key='acme_eab_required').first()
+    eab_required = (eab_cfg.value if eab_cfg else 'false').lower() == 'true'
+
+    if eab_required and not eab_data:
+        return proxy_error('externalAccountRequired',
+                           'External account binding required', 400)
+
+    if eab_data:
+        acme_svc = AcmeService()
+        eab_valid, eab_err = acme_svc.validate_eab(eab_data, jwk)
+        if not eab_valid:
+            return proxy_error('malformed',
+                               f'Invalid external account binding: {eab_err}', 400)
 
     try:
         acme_svc = AcmeService()
@@ -135,6 +156,18 @@ def new_account():
             contact=payload.get("contact", []),
             terms_of_service_agreed=payload.get("termsOfServiceAgreed", False)
         )
+
+        # Mark EAB credential as used (one-shot binding)
+        if eab_data and is_new:
+            try:
+                eab_protected = json.loads(
+                    base64.urlsafe_b64decode(eab_data['protected'] + '==')
+                )
+                eab_kid = eab_protected.get('kid', '')
+                if eab_kid:
+                    acme_svc.mark_eab_used(eab_kid, account.account_id)
+            except Exception as e:
+                logger.warning(f"Could not mark EAB credential used: {e}")
 
         acct_url = f"{request.scheme}://{request.host}/acme/proxy/acct/{account.account_id}"
 
@@ -223,6 +256,8 @@ def authz(authz_id):
 
         data, _ = result
         return proxy_response(data)
+    except ValueError as e:
+        return proxy_error("malformed", str(e), 400)
     except RuntimeError as e:
         logger.warning(f"ACME proxy authz: {e}")
         return proxy_error("unsupportedIdentifier", str(e))
@@ -245,6 +280,8 @@ def challenge(chall_id):
         if link_header:
             resp.headers['Link'] = link_header
         return resp
+    except ValueError as e:
+        return proxy_error("malformed", str(e), 400)
     except RuntimeError as e:
         logger.warning(f"ACME proxy challenge: {e}")
         detail = str(e)
@@ -277,6 +314,8 @@ def get_order(order_id):
         resp = proxy_response(data)
         resp.headers['Location'] = order_url
         return resp
+    except ValueError as e:
+        return proxy_error("malformed", str(e), 400)
     except Exception as e:
         logger.error(f"ACME proxy get-order error: {e}")
         return proxy_error("serverInternal", "Internal server error", 500)
@@ -288,6 +327,20 @@ def finalize(order_id):
     is_valid, payload, _, err = verify_proxy_jws()
     if not is_valid:
         return proxy_error("malformed", err)
+
+    # Extract requester account_id from JWS kid for ownership check
+    requester_account_id = None
+    try:
+        jws_data = request.get_json(silent=True) or {}
+        protected_b64 = jws_data.get('protected', '')
+        if protected_b64:
+            protected_b64 += '=' * (-len(protected_b64) % 4)
+            protected = json.loads(base64.urlsafe_b64decode(protected_b64))
+            kid = protected.get('kid', '')
+            if kid:
+                requester_account_id = kid.rstrip('/').rsplit('/', 1)[-1]
+    except Exception:
+        pass
 
     try:
         csr_b64 = payload.get('csr')
@@ -301,12 +354,17 @@ def finalize(order_id):
         csr_pem = csr_obj.public_bytes(serialization.Encoding.PEM).decode()
 
         svc = get_proxy_service()
-        data = svc.finalize_order(order_id, csr_pem)
+        data = svc.finalize_order(order_id, csr_pem,
+                                  requester_account_id=requester_account_id)
 
         order_url = f"{request.scheme}://{request.host}/acme/proxy/order/{order_id}"
         resp = proxy_response(data)
         resp.headers['Location'] = order_url
         return resp
+    except PermissionError as e:
+        return proxy_error("unauthorized", str(e), 403)
+    except ValueError as e:
+        return proxy_error("malformed", str(e), 400)
     except Exception as e:
         logger.error(f"ACME proxy finalize error: {e}")
         return proxy_error("serverInternal", "Internal server error", 500)
@@ -334,6 +392,8 @@ def cert(cert_id):
         if link_header:
             resp.headers['Link'] = link_header
         return resp
+    except ValueError as e:
+        return proxy_error("malformed", str(e), 400)
     except Exception as e:
         logger.error(f"ACME proxy cert error: {e}")
         return proxy_error("serverInternal", "Internal server error", 500)
