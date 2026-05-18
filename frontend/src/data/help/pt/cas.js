@@ -33,15 +33,29 @@ export default {
           { label: 'Pré-requisito', text: 'Configure e conecte um provedor HSM em Gerenciamento HSM primeiro' },
         ]
       },
+      {
+        title: 'Modo offline',
+        items: [
+          { label: 'Propósito', text: 'Proteger a chave privada de uma CA (tipicamente uma raiz) do uso em tempo de execução mantendo disponíveis o certificado, a cadeia, a CRL e o OCSP' },
+          { label: 'Protegida por senha', text: 'A chave é envolvida com uma senha fornecida pelo usuário (PKCS#8) e permanece no banco de dados. Restauração digitando a senha.' },
+          { label: 'Exportada para arquivo', text: 'A chave é exportada como PEM criptografado baixado uma vez e removida do banco de dados. Restauração reenviando o arquivo com a senha.' },
+          { label: 'Política de senha', text: 'A senha segue as regras de complexidade do UCM (comprimento e classes de caracteres). Se perdida, a chave é irrecuperável.' },
+          { label: 'Efeito na assinatura', text: 'A assinatura de CSR, emissão de certificados e renovação da CA são bloqueadas offline. CRL e OCSP continuam funcionando a partir das assinaturas em cache.' },
+          { label: 'Sub-CAs', text: 'Tanto CAs raízes quanto intermediárias podem ser colocadas offline independentemente' },
+        ]
+      },
     ],
     tips: [
       'CAs com ícone de chave (🔑) possuem chave privada e podem assinar certificados',
       'Use CAs intermediárias para assinatura diária, mantenha a CA raiz offline quando possível',
       'A exportação PKCS#12 inclui a cadeia completa e é ideal para backup',
+      'Coloque a CA raiz offline assim que suas intermediárias estiverem operacionais',
+      'Use «Exportada para arquivo» para o maior isolamento air-gap; «Protegida por senha» para restauração rápida no local',
     ],
     warnings: [
       'Excluir uma CA NÃO revogará os certificados que ela emitiu — revogue-os primeiro',
       'As chaves privadas são armazenadas criptografadas; perder o banco de dados significa perder as chaves',
+      'Senhas do modo offline NÃO são recuperáveis — armazene-as em seu gerenciador de senhas / vault antes de confirmar',
     ],
   },
   helpGuides: {
@@ -163,6 +177,49 @@ O UCM pode armazenar a chave de assinatura de uma CA em um módulo de segurança
 - As chaves privadas apoiadas por HSM **não podem ser exportadas**. As opções PKCS#12, JKS e somente-chave ficam ocultas para CAs HSM. Apenas o certificado (PEM/DER/P7B) pode ser exportado.
 - **Não há migração no lugar** entre Local e HSM. Para "mover" uma CA local existente para um HSM, crie uma nova CA no HSM e reemita os certificados.
 - As chaves existentes oferecidas em *Usar chave existente* são filtradas para chaves assimétricas com capacidade de assinatura ainda não vinculadas a outra CA.
+
+## Modo offline
+
+Tire a chave de assinatura de uma CA do uso em tempo de execução sem excluir a CA. O certificado, a cadeia, a CRL e o OCSP continuam funcionando — apenas as operações de assinatura (assinar CSR, emitir certificado, renovar CA) são bloqueadas.
+
+Esta é a maneira padrão de proteger uma CA raiz entre cerimônias raras, mantendo online sua âncora de confiança e infraestrutura de revogação.
+
+### Dois modos
+
+**Protegida por senha** — a chave privada permanece no banco de dados UCM, envolvida (PKCS#8) sob uma senha que você escolhe. Para colocar a CA novamente online, clique em **Restaurar** e digite a senha novamente. Rápido e conveniente; a segurança depende da força da senha e de o UCM não estar comprometido.
+
+**Exportada para arquivo** — a chave privada é exportada como um arquivo PEM criptografado por senha baixado uma vez. A chave é então **removida do banco de dados**. Para colocar a CA novamente online, clique em **Restaurar**, faça upload do arquivo e digite a senha. Esta é a opção mais forte (verdadeiro air-gap) mas você é totalmente responsável pelo arquivo: se perdê-lo, a chave é irrecuperável.
+
+### Regras de senha
+A senha segue a política de complexidade padrão do UCM: comprimento mínimo, mistura de classes de caracteres, sem sequências triviais. As mesmas regras das senhas de usuário.
+
+### Passo a passo — Colocar offline
+1. Abra o painel de detalhes da CA
+2. Clique em **Colocar offline**
+3. Leia a explicação, clique em **Continuar**
+4. Escolha um modo (*Protegida por senha* ou *Exportada para arquivo*)
+5. Digite a senha duas vezes
+6. Confirme. Para *Exportada para arquivo*, a chave criptografada é baixada imediatamente — armazene-a com segurança.
+
+### Passo a passo — Restaurar
+1. Abra o painel de detalhes da CA offline
+2. Clique em **Restaurar**
+3. Digite a senha
+4. Para *Exportada para arquivo*: também selecione o arquivo de chave baixado anteriormente
+5. Confirme. As operações de assinatura são retomadas imediatamente.
+
+### Efeito nas operações
+| Operação | Online | Offline |
+|---|---|---|
+| Emitir certificado | Permitido | **Bloqueado** |
+| Assinar CSR | Permitido | **Bloqueado** |
+| Renovar CA | Permitido | **Bloqueado** |
+| Renovar certificado emitido | Permitido | **Bloqueado** |
+| Servir CRL / OCSP | Permitido | Permitido (assinatura em cache) |
+| Exportar certificado / cadeia | Permitido | Permitido |
+| Excluir CA | Permitido | Permitido |
+
+> ⚠ Senhas do modo offline **não são recuperáveis**. Armazene-as em seu gerenciador de senhas / vault antes de confirmar. Senha perdida = CA inutilizável = reemissão completa da hierarquia subordinada.
 `
   }
 }

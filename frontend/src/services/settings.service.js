@@ -88,6 +88,12 @@ export const settingsService = {
     return apiClient.post('/system/security/disable-encryption')
   },
 
+  async downloadMasterKey() {
+    return apiClient.get('/system/security/master-key/download', {
+      responseType: 'blob'
+    })
+  },
+
   // Security Anomalies
   async getSecurityAnomalies() {
     return apiClient.get('/system/security/anomalies')
@@ -113,5 +119,18 @@ export const settingsService = {
 
   async updateCTSettings(data) {
     return apiClient.patch('/settings/ct', data)
+  },
+
+  // Generic certificate auto-renewal
+  async getAutoRenewalSettings() {
+    return apiClient.get('/settings/auto-renewal')
+  },
+
+  async updateAutoRenewalSettings(data) {
+    return apiClient.patch('/settings/auto-renewal', data)
+  },
+
+  async runAutoRenewalNow() {
+    return apiClient.post('/settings/auto-renewal/run')
   }
 }

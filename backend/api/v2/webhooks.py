@@ -2,19 +2,23 @@
 Webhook API - UCM
 Endpoints for managing webhook configurations.
 """
-from flask import Blueprint, request
-from auth.unified import require_auth
-from utils.response import success_response, error_response
-from utils.db_transaction import safe_commit
-from utils.ssrf_protection import validate_url_not_cloud_metadata
-from utils.encryption import encrypt_if_needed
-from models import db
-from services.webhook_service import WebhookEndpoint, WebhookService
 import json
 import logging
+import re
+import secrets
+
+from flask import Blueprint, g, request
+from auth.unified import require_auth
+from models import db
+from services.audit_service import AuditService
+from services.webhook_service import WebhookEndpoint, WebhookService
+from utils.db_transaction import safe_commit
+from utils.decorators import require_json_body
+from utils.encryption import encrypt_if_needed
+from utils.response import created_response, error_response, no_content_response, success_response
+from utils.ssrf_protection import validate_url_not_cloud_metadata
 
 logger = logging.getLogger(__name__)
-import secrets
 
 bp = Blueprint('webhooks', __name__)
 
@@ -29,6 +33,14 @@ _FORBIDDEN_HEADERS = {
 _MAX_EVENTS = 64
 _VALID_EVENTS_LITERAL_STAR = '*'
 
+# Auth validation constants
+_VALID_AUTH_TYPES = {'none', 'bearer', 'basic', 'api_key', 'custom'}
+_MAX_AUTH_TOKEN_BYTES = 8192
+_MAX_AUTH_USERNAME_LEN = 255
+_MAX_AUTH_HEADER_NAME_LEN = 100
+# RFC 7230 token characters
+_AUTH_HEADER_NAME_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$")
+
 
 def _validate_events(events):
     if not isinstance(events, list):
@@ -42,6 +54,157 @@ def _validate_events(events):
         if ev not in valid:
             return False, f'Unknown event: {ev}'
     return True, None
+
+
+def _validate_auth(payload, *, is_create, endpoint=None):
+    """Validate auth_* fields with PUT semantics.
+
+    On create (is_create=True): auth_type defaults to 'none' if absent.
+    On update (is_create=False): absent fields are left unchanged.
+      - field = ""  → 400 (must use null to clear)
+      - field = null → clear (None / 'none' for auth_type)
+
+    Returns (fields_to_apply: dict, error: str | None).
+    fields_to_apply maps column names to values to set on the endpoint.
+    auth_token in the returned dict is the plaintext value (None = clear).
+    """
+    fields = {}
+    auth_type_explicit = 'auth_type' in payload
+
+    # ── auth_type ──────────────────────────────────────────────────────────
+    if auth_type_explicit:
+        at_raw = payload['auth_type']
+        if at_raw is None:
+            auth_type = 'none'
+        elif at_raw == '':
+            return {}, "auth_type cannot be empty (use null to clear)"
+        elif not isinstance(at_raw, str):
+            return {}, "auth_type must be a string"
+        else:
+            auth_type = at_raw
+        if auth_type not in _VALID_AUTH_TYPES:
+            return {}, "Invalid auth_type"
+        fields['auth_type'] = auth_type
+    elif is_create:
+        auth_type = 'none'
+        fields['auth_type'] = 'none'
+    else:
+        # Absent on PUT — keep current value; resolve for type-specific checks
+        auth_type = (endpoint.auth_type or 'none') if endpoint else 'none'
+
+    # ── auth_token ─────────────────────────────────────────────────────────
+    if 'auth_token' in payload:
+        tok = payload['auth_token']
+        if tok == '':
+            return {}, "Auth token cannot be empty (use null to clear)"
+        if tok is not None:
+            if not isinstance(tok, str):
+                return {}, "auth_token must be a string"
+            if len(tok.encode('utf-8')) > _MAX_AUTH_TOKEN_BYTES:
+                return {}, f"auth_token exceeds {_MAX_AUTH_TOKEN_BYTES}-byte limit"
+        fields['auth_token'] = tok  # None means clear
+
+    # ── auth_username ──────────────────────────────────────────────────────
+    if 'auth_username' in payload:
+        u = payload['auth_username']
+        if u == '':
+            return {}, "auth_username cannot be empty (use null to clear)"
+        if u is not None:
+            if not isinstance(u, str):
+                return {}, "auth_username must be a string"
+            if len(u) > _MAX_AUTH_USERNAME_LEN:
+                return {}, f"auth_username exceeds {_MAX_AUTH_USERNAME_LEN} characters"
+            if ':' in u:
+                return {}, "auth_username must not contain ':'"
+        fields['auth_username'] = u
+
+    # ── auth_header_name ───────────────────────────────────────────────────
+    if 'auth_header_name' in payload:
+        h = payload['auth_header_name']
+        if h == '':
+            return {}, "auth_header_name cannot be empty (use null to clear)"
+        if h is not None:
+            if not isinstance(h, str):
+                return {}, "auth_header_name must be a string"
+            if len(h) > _MAX_AUTH_HEADER_NAME_LEN:
+                return {}, f"auth_header_name exceeds {_MAX_AUTH_HEADER_NAME_LEN} characters"
+            if not _AUTH_HEADER_NAME_RE.match(h):
+                return {}, "auth_header_name contains invalid characters (RFC 7230 token required)"
+        fields['auth_header_name'] = h
+
+    # ── type-specific required-field checks ────────────────────────────────
+    # Run when auth_type is explicitly set (or on create) so we validate the
+    # final state that will be persisted.
+    if auth_type_explicit or is_create:
+        def _has_token():
+            if 'auth_token' in fields:
+                return fields['auth_token'] is not None
+            return bool(endpoint._auth_token) if endpoint else False
+
+        def _get_username():
+            if 'auth_username' in fields:
+                return fields['auth_username']
+            return endpoint.auth_username if endpoint else None
+
+        def _get_header_name():
+            if 'auth_header_name' in fields:
+                return fields['auth_header_name']
+            return endpoint.auth_header_name if endpoint else None
+
+        if auth_type == 'none':
+            # Clear all related fields unless explicitly provided
+            fields.setdefault('auth_token', None)
+            fields.setdefault('auth_username', None)
+            fields.setdefault('auth_header_name', None)
+
+        elif auth_type == 'bearer':
+            if not _has_token():
+                return {}, "auth_token is required for bearer auth"
+            fields['auth_username'] = None
+            fields['auth_header_name'] = None
+
+        elif auth_type == 'basic':
+            if not _has_token():
+                return {}, "auth_token (password) is required for basic auth"
+            if not _get_username():
+                return {}, "auth_username is required for basic auth"
+            fields['auth_header_name'] = None
+
+        elif auth_type == 'api_key':
+            if not _has_token():
+                return {}, "auth_token is required for api_key auth"
+            hn = _get_header_name()
+            if not hn:
+                return {}, "auth_header_name is required for api_key auth"
+            if hn.lower() == 'authorization':
+                return {}, "Use auth_type=custom for the Authorization header"
+            fields['auth_username'] = None
+
+        elif auth_type == 'custom':
+            if not _has_token():
+                return {}, "auth_token is required for custom auth"
+            if not _get_header_name():
+                return {}, "auth_header_name is required for custom auth"
+            fields['auth_username'] = None
+
+    else:
+        # auth_type not changing on PUT: still enforce api_key header restriction
+        # if the operator is updating auth_header_name on an existing api_key endpoint.
+        if auth_type == 'api_key' and 'auth_header_name' in fields:
+            hn = fields['auth_header_name']
+            if hn and hn.lower() == 'authorization':
+                return {}, "Use auth_type=custom for the Authorization header"
+
+    return fields, None
+
+
+def _apply_auth_fields(endpoint, fields):
+    """Write validated auth fields onto the endpoint model instance."""
+    for key, value in fields.items():
+        if key == 'auth_token':
+            endpoint.auth_token = value  # uses encrypted property setter
+        else:
+            setattr(endpoint, key, value)
 
 
 def _validate_custom_headers(headers):
@@ -76,29 +239,26 @@ def get_webhook(endpoint_id):
 
 @bp.route('/api/v2/webhooks', methods=['POST'])
 @require_auth(['write:settings'])
+@require_json_body
 def create_webhook():
     """Create new webhook endpoint"""
-    data = request.get_json()
-    
+    data = g.json_data
+
     if not data.get('name'):
         return error_response("Webhook name is required", 400)
     if not data.get('url'):
         return error_response("Webhook URL is required", 400)
-    
-    # Validate URL format
+
     url = data['url']
     if not url.startswith(('http://', 'https://')):
         return error_response("URL must start with http:// or https://", 400)
-    
-    # Narrow SSRF guard — UCM is on-prem, internal webhooks (Slack/Mattermost/
-    # Teams/Jenkins/Gitea/Home Assistant on RFC1918) are a primary use case.
-    # Only block cloud metadata endpoints + loopback (high-impact targets).
+
     try:
         validate_url_not_cloud_metadata(url)
     except ValueError as e:
         logger.warning(f"Webhook SSRF blocked: {e}")
         return error_response("Webhook URL must not target cloud metadata services or loopback", 400)
-    
+
     events = data.get('events', ['*'])
     ok, err = _validate_events(events)
     if not ok:
@@ -108,13 +268,17 @@ def create_webhook():
     if not ok:
         return error_response(err, 400)
 
-    # Reject empty-string secret (would silently disable HMAC)
     secret_in = data.get('secret')
     if secret_in is not None and not isinstance(secret_in, str):
         return error_response('Secret must be a string', 400)
     if isinstance(secret_in, str) and not secret_in.strip():
         return error_response('Secret cannot be empty (omit field for auto-generation)', 400)
     secret_value = secret_in or secrets.token_urlsafe(32)
+
+    # Validate auth fields
+    auth_fields, auth_err = _validate_auth(data, is_create=True)
+    if auth_err:
+        return error_response(auth_err, 400)
 
     endpoint = WebhookEndpoint(
         name=data['name'],
@@ -125,22 +289,33 @@ def create_webhook():
         enabled=data.get('enabled', True),
         custom_headers=json.dumps(custom_headers)
     )
-    
+    _apply_auth_fields(endpoint, auth_fields)
+
     db.session.add(endpoint)
     ok, _err = safe_commit(logger, "Failed to create webhook")
     if not ok:
         return _err
-    
-    return success_response(data=endpoint.to_dict(), message="Webhook created")
+
+    if endpoint.auth_type and endpoint.auth_type != 'none':
+        AuditService.log_action(
+            action='webhook.auth_configured',
+            resource_type='webhook',
+            resource_id=str(endpoint.id),
+            resource_name=endpoint.name,
+            details=json.dumps({'auth_type': endpoint.auth_type}),
+        )
+
+    return created_response(data=endpoint.to_dict(), message="Webhook created")
 
 
 @bp.route('/api/v2/webhooks/<int:endpoint_id>', methods=['PUT'])
 @require_auth(['write:settings'])
+@require_json_body
 def update_webhook(endpoint_id):
     """Update webhook endpoint"""
     endpoint = WebhookEndpoint.query.get_or_404(endpoint_id)
-    data = request.get_json()
-    
+    data = g.json_data
+
     if 'name' in data:
         endpoint.name = data['name']
     if 'url' in data:
@@ -172,10 +347,56 @@ def update_webhook(endpoint_id):
         if not ok:
             return error_response(err, 400)
         endpoint.custom_headers = json.dumps(data['custom_headers'] or {})
-    
+
+    # Validate auth fields and detect transitions for audit
+    prev_auth_type = endpoint.auth_type or 'none'
+    prev_token_set = bool(endpoint._auth_token)
+
+    auth_fields, auth_err = _validate_auth(data, is_create=False, endpoint=endpoint)
+    if auth_err:
+        AuditService.log_action(
+            action='webhook.auth_token_invalid',
+            resource_type='webhook',
+            resource_id=str(endpoint_id),
+            resource_name=endpoint.name,
+            details=json.dumps({'reason': auth_err, 'auth_type': data.get('auth_type')}),
+            success=False,
+        )
+        return error_response(auth_err, 400)
+
+    _apply_auth_fields(endpoint, auth_fields)
+    new_auth_type = endpoint.auth_type or 'none'
+
     ok, _err = safe_commit(logger, "Failed to update webhook")
     if not ok:
         return _err
+
+    # Emit audit events for auth transitions
+    if prev_auth_type == 'none' and new_auth_type != 'none':
+        AuditService.log_action(
+            action='webhook.auth_configured',
+            resource_type='webhook',
+            resource_id=str(endpoint.id),
+            resource_name=endpoint.name,
+            details=json.dumps({'auth_type': new_auth_type}),
+        )
+    elif prev_auth_type != 'none' and new_auth_type == 'none':
+        AuditService.log_action(
+            action='webhook.auth_disabled',
+            resource_type='webhook',
+            resource_id=str(endpoint.id),
+            resource_name=endpoint.name,
+            details=json.dumps({'prev_auth_type': prev_auth_type}),
+        )
+    elif new_auth_type != 'none' and prev_token_set and 'auth_token' in auth_fields and auth_fields['auth_token'] is not None:
+        AuditService.log_action(
+            action='webhook.auth_token_rotated',
+            resource_type='webhook',
+            resource_id=str(endpoint.id),
+            resource_name=endpoint.name,
+            details=json.dumps({'auth_type': new_auth_type}),
+        )
+
     return success_response(data=endpoint.to_dict(), message="Webhook updated")
 
 
@@ -188,7 +409,7 @@ def delete_webhook(endpoint_id):
     ok, _err = safe_commit(logger, "Failed to delete webhook")
     if not ok:
         return _err
-    return success_response(message="Webhook deleted")
+    return no_content_response()
 
 
 @bp.route('/api/v2/webhooks/<int:endpoint_id>/toggle', methods=['POST'])

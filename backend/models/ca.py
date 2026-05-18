@@ -76,6 +76,11 @@ class CA(db.Model):
     hsm_key_id = db.Column(db.Integer, db.ForeignKey('hsm_keys.id'), nullable=True)
     hsm_key = db.relationship('HsmKey', backref='cas')
     
+    # Offline mode — root CA can be taken offline
+    offline = db.Column(db.Boolean, default=False)
+    offline_reason = db.Column(db.String(1024), nullable=True)
+    offline_mode = db.Column(db.String(32), nullable=True)
+    
     # Relationships
     certificates = db.relationship("Certificate", back_populates="ca", lazy="dynamic")
     
@@ -294,6 +299,9 @@ class CA(db.Model):
             if self.valid_to < utc_now():
                 status = "Expired"
         
+        # Offline state (separate from expiry-based status)
+        offline_label = "Offline" if self.offline else None
+        
         # Format dates for frontend
         issued = self.valid_from.strftime("%Y-%m-%d") if self.valid_from else ""
         expires = self.valid_to.strftime("%Y-%m-%d") if self.valid_to else ""
@@ -374,6 +382,11 @@ class CA(db.Model):
             "hsm_provider_id": self.hsm_key.provider_id if self.hsm_key else None,
             "hsm_provider_name": (self.hsm_key.provider.name if (self.hsm_key and self.hsm_key.provider) else None),
             "hsm_key_label": self.hsm_key.label if self.hsm_key else None,
+            # Offline state
+            "offline": self.offline,
+            "offline_reason": self.offline_reason,
+            "offline_mode": self.offline_mode,
+            "offline_label": offline_label,
             # PEM for display/copy
             "pem": self._decode_pem(self.crt),
         }

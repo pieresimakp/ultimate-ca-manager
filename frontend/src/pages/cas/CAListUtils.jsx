@@ -63,8 +63,9 @@ export function CAInfoLine({ ca, isMobile, t }) {
   )
 }
 
-/** Status pill badge */
-export function StatusBadge({ status }) {
+/** Status pill badge. Hidden when CA is offline (OfflineBadge takes over). */
+export function StatusBadge({ status, offline = false }) {
+  if (offline) return null
   return (
     <span className={cn(
       'shrink-0 px-2 py-0.5 rounded-full text-2xs font-medium flex items-center gap-1',
@@ -98,6 +99,27 @@ export function HsmBadge({ ca, t }) {
       title={tip || t('cas.detail.hsmBacked')}
     >
       HSM
+    </span>
+  )
+}
+
+/** Offline badge — shown when CA is taken offline */
+export function OfflineBadge({ ca, t }) {
+  if (!ca?.offline) return null
+  const mode = ca.offline_mode || 'password_protected'
+  const reason = ca.offline_reason || ''
+  const modeLabel = mode === 'file_exported'
+    ? t('cas.offlineFileExported')
+    : t('cas.offlinePasswordProtected')
+  return (
+    <span
+      className={cn(
+        'shrink-0 px-1.5 py-0.5 rounded-md text-2xs font-semibold',
+        'badge-bg-gray'
+      )}
+      title={reason || modeLabel}
+    >
+      ⚠ {t('cas.offline')}
     </span>
   )
 }

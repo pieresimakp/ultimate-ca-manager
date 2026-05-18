@@ -10,7 +10,7 @@ import {
   ShieldCheck, Key, Users, Gear, Database, Lock, Globe,
   ListChecks, CloudArrowUp, HardDrive, UsersFour, Fingerprint,
   ArrowClockwise, Wrench, Stack, Robot, Gavel, CalendarBlank, FilePdf,
-  WindowsLogo, UserSwitch, Clock, UserPlus
+  WindowsLogo, UserSwitch, Clock, UserPlus, ShieldWarning
 } from '@phosphor-icons/react'
 
 export const helpContent = {
@@ -84,15 +84,29 @@ export const helpContent = {
           { label: 'Prerequisite', text: 'Configure and connect an HSM provider in HSM Management first' },
         ]
       },
+      {
+        title: 'Offline Mode',
+        icon: ShieldWarning,
+        items: [
+          { label: 'Purpose', text: 'Protect a CA private key (typically a Root) from runtime use while keeping the certificate, chain, CRL and OCSP available' },
+          { label: 'Password protected', text: 'Key is wrapped with a user-supplied password (PKCS#8) and stays in the database. Restore by entering the password.' },
+          { label: 'File exported', text: 'Key is exported as a password-protected PEM download and removed from the database. Restore by re-uploading the file with the password.' },
+          { label: 'Password policy', text: 'The password follows the UCM password complexity rules (length and character classes). Lose it and the key is unrecoverable.' },
+          { label: 'Effect on signing', text: 'CSR signing, certificate issuance and CA renewal are blocked while offline. CRL and OCSP keep working from cached signatures.' },
+          { label: 'Sub-CAs', text: 'Both Root and Intermediate CAs can be taken offline independently' },
+        ]
+      },
     ],
     tips: [
       'CAs with a key icon (🔑) have a private key and can sign certificates',
-      'Use intermediate CAs for day-to-day signing, keep root CA offline when possible',
+      'Take the Root CA offline as soon as your Intermediates are operational',
+      'Use "File exported" for the strongest air-gap; use "Password protected" for fast in-place restore',
       'PKCS#12 export includes the full chain and is ideal for backup',
     ],
     warnings: [
       'Deleting a CA will NOT revoke certificates it has issued — revoke them first',
       'Private keys are stored encrypted; losing the database means losing the keys',
+      'Offline-mode passwords are NOT recoverable — store them in your password manager / vault before confirming',
     ],
     related: ['Certificates', 'Templates', 'CRL/OCSP']
   },
@@ -717,7 +731,7 @@ export const helpContent = {
           { label: 'Database', text: 'Active backend (SQLite or native PostgreSQL), size, table count, bidirectional migration UI with safety checks' },
           { label: 'HTTPS', text: 'TLS certificate for the UCM web interface' },
           { label: 'Updates', text: 'Check for new versions, view changelog, auto-update (DEB/RPM)' },
-          { label: 'Webhooks', text: 'HTTP webhooks for certificate events (issue, revoke, expire) — internal LAN URLs allowed; cloud-metadata IPs blocked' },
+          { label: 'Webhooks', text: 'HTTP webhooks for certificate events (issue, revoke, expire) — internal LAN URLs allowed; cloud-metadata IPs blocked. Optional outbound auth: Bearer, Basic, API key, or custom header' },
         ]
       },
       {

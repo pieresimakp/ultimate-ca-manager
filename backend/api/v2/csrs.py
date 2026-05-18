@@ -689,6 +689,13 @@ def sign_csr(csr_id):
     if not ca.crt or not ca.prv:
         return error_response('CA is not valid for signing', 400)
 
+    # Check offline status
+    if ca.offline:
+        return error_response(
+            f"CA is offline: {ca.offline_reason or 'no reason provided'}",
+            400
+        )
+
     # Clamp validity to CA expiration
     try:
         from cryptography import x509 as _x509

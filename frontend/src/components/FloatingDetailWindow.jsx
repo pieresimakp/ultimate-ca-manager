@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Certificate, ShieldCheck, Fingerprint, Trash, X, ArrowsClockwise } from '@phosphor-icons/react'
+import { Certificate, ShieldCheck, Fingerprint, Trash, X, ArrowsClockwise, ShieldWarning } from '@phosphor-icons/react'
 import { FloatingWindow } from './ui/FloatingWindow'
 import { CertificateDetails } from './CertificateDetails'
 import { CADetails } from './CADetails'
@@ -19,6 +19,8 @@ import { usePermission } from '../hooks'
 import { extractData } from '../lib/utils'
 import { LoadingSpinner } from './LoadingSpinner'
 import { ExportModal } from './ExportModal'
+import { TakeOfflineModal } from './cas/TakeOfflineModal'
+import { RestoreModal } from './cas/RestoreModal'
 import { cn } from '../lib/utils'
 
 const ENTITY_CONFIG = {
@@ -59,11 +61,13 @@ const ENTITY_CONFIG = {
 export function FloatingDetailWindow({ windowInfo }) {
   const { t } = useTranslation()
   const { closeWindow, focusWindow, sameWindow } = useWindowManager()
-  const { showSuccess, showError, showConfirm } = useNotification()
+  const { showSuccess, showError, showConfirm, showPrompt } = useNotification()
   const { canWrite, canDelete } = usePermission()
   const [data, setData] = useState(windowInfo.data?.fullData || null)
   const [loading, setLoading] = useState(!windowInfo.data?.fullData)
   const [minimized, setMinimized] = useState(false)
+  const [offlineModalOpen, setOfflineModalOpen] = useState(false)
+  const [restoreModalOpen, setRestoreModalOpen] = useState(false)
 
   const config = ENTITY_CONFIG[windowInfo.type]
 
@@ -187,6 +191,22 @@ export function FloatingDetailWindow({ windowInfo }) {
     }
   }
 
+  const handleOffline = () => {
+    setOfflineModalOpen(true)
+  }
+
+  const handleRestore = () => {
+    setRestoreModalOpen(true)
+  }
+
+  const handleOfflineSuccess = () => {
+    closeWindow(windowInfo.id)
+  }
+
+  const handleRestoreSuccess = () => {
+    closeWindow(windowInfo.id)
+  }
+
   const title = data ? config.getTitle(data) : t('common.loading')
   const subtitle = data ? (windowInfo.type === 'ca' ? t(config.getSubtitle(data)) : config.getSubtitle(data)) : ''
 
@@ -205,11 +225,14 @@ export function FloatingDetailWindow({ windowInfo }) {
     onRenew: isCert && canWrite('certificates') && !data.revoked && data.has_private_key ? handleRenew : null,
     onRevoke: (isCert || isUserCert) && canWrite(resource) && !data.revoked ? handleRevoke : null,
     onUnhold: isCert && canWrite('certificates') && data.revoked && (data.revoke_reason === 'certificateHold' || data.revoke_reason === 'certificate_hold') ? handleUnhold : null,
+    onOffline: isCA && canWrite('cas') && !data.offline ? handleOffline : null,
+    onRestore: isCA && canWrite('cas') && data.offline ? handleRestore : null,
     onDelete: canDelete(resource) ? handleDelete : null,
     t,
   } : null
 
   return (
+    <>
     <FloatingWindow
       storageKey={sameWindow ? 'ucm-detail-single' : `ucm-detail-${windowInfo.id}`}
       defaultPos={windowInfo.defaultPos}
@@ -242,6 +265,24 @@ export function FloatingDetailWindow({ windowInfo }) {
         </div>
       )}
     </FloatingWindow>
+
+    {isCA && data && (
+      <>
+        <TakeOfflineModal
+          open={offlineModalOpen}
+          onClose={() => setOfflineModalOpen(false)}
+          ca={data}
+          onSuccess={handleOfflineSuccess}
+        />
+        <RestoreModal
+          open={restoreModalOpen}
+          onClose={() => setRestoreModalOpen(false)}
+          ca={data}
+          onSuccess={handleRestoreSuccess}
+        />
+      </>
+    )}
+    </>
   )
 }
 
@@ -289,7 +330,7 @@ function DetailContent({ type, data }) {
 /**
  * ActionBar — Toolbar under the window header with labeled action buttons
  */
-function ActionBar({ onExport, hasPrivateKey, canExportKey, entityType, entityName, onRenew, onRevoke, onUnhold, onDelete, t }) {
+function ActionBar({ onExport, hasPrivateKey, canExportKey, entityType, entityName, onRenew, onRevoke, onUnhold, onOffline, onRestore, onDelete, t }) {
   const [showExportModal, setShowExportModal] = useState(false)
   const btnBase = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150'
 
@@ -323,6 +364,22 @@ function ActionBar({ onExport, hasPrivateKey, canExportKey, entityType, entityNa
         <button onClick={onUnhold} className={cn(btnBase, 'text-text-secondary hover:text-accent-success hover:bg-accent-success-op10')}>
           <ArrowsClockwise size={14} weight="duotone" />
           {t('certificates.removeHold', 'Remove Hold')}
+        </button>
+      )}
+
+      {/* Take Offline — CA only */}
+      {onOffline && (
+        <button onClick={onOffline} className={cn(btnBase, 'text-text-secondary hover:text-status-warning hover:bg-status-warning-op10')}>
+          <ShieldWarning size={14} weight="duotone" />
+          {t('cas.takeOffline', 'Take Offline')}
+        </button>
+      )}
+
+      {/* Restore — CA only, when offline */}
+      {onRestore && (
+        <button onClick={onRestore} className={cn(btnBase, 'text-text-secondary hover:text-accent-success hover:bg-accent-success-op10')}>
+          <ArrowsClockwise size={14} weight="duotone" />
+          {t('cas.restore', 'Restore')}
         </button>
       )}
 

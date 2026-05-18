@@ -425,7 +425,8 @@
     "scanNetwork": "Escanear red",
     "generateReport": "Generar informe",
     "healthStatus": "Estado de salud",
-    "remove": "Eliminar"
+    "remove": "Eliminar",
+    "continue": "Continuar"
   },
   "commandPalette": {
     "searchPlaceholder": "Buscar comandos, certificados, CAs, usuarios...",
@@ -792,7 +793,7 @@
     "deleteCAButton": "Eliminar CA",
     "deleteFailed": "Error to eliminar CA",
     "exportFailed": "Error to exportar CA",
-    "passwordTooShort": "Contraseña must be at least 4 characters",
+    "passwordTooShort": "La contraseña debe tener al menos 12 caracteres",
     "exportedAs": "CA exportared as {{format}}",
     "createFailed": "Error to crear CA",
     "unnamedCA": "Unnombred CA",
@@ -804,6 +805,15 @@
     "certificateCount": "{{count}} certificados",
     "daysLeft": "{{count}} días restantes",
     "daysLeft_one": "{{count}} día restante",
+    "offline": "Desconectado",
+    "offlinePassword": "Contraseña",
+    "offlineMode": "Modo desconectado",
+    "offlinePasswordProtected": "Protegido por contraseña",
+    "offlineFileExported": "Archivo de clave exportado",
+    "takeOffline": "Desconectar",
+    "restore": "Restaurar CA",
+    "offlineFailed": "Error al desconectar la CA",
+    "restoreFailed": "Error al restaurar la CA",
     "descriptionPlaceholder": "Descripción opcional para esta CA",
     "advancedConstraints": "Restricciones avanzadas (RFC 5280)",
     "pathLength": "Restricción de longitud de ruta",
@@ -839,7 +849,32 @@
       "hsmBacked": "Respaldada por HSM",
       "hsmKey": "Clave HSM",
       "exportBlockedHsm": "La clave respaldada por HSM no se puede exportar"
-    }
+    },
+    "offlineExplain": {
+      "title": "¿Qué hace poner una CA fuera de línea?",
+      "body": "Una CA fuera de línea no puede firmar nuevos certificados ni CRL hasta su restauración. Úselo para CA raíz que solo deben ponerse en línea para ceremonias.",
+      "bullet1": "Toda firma de certificados está bloqueada",
+      "bullet2": "La generación de CRL está bloqueada",
+      "bullet3": "Los certificados existentes siguen siendo válidos"
+    },
+    "offlineModeDesc": {
+      "passwordProtected": "Cifra la clave privada en la base de datos con su contraseña. La CA permanece en UCM y se restaura introduciendo la contraseña.",
+      "fileExported": "Exporta la clave privada cifrada como archivo y la elimina de la base de datos. UCM ya no conserva la clave — guarde el archivo en lugar seguro."
+    },
+    "offlineFileExportedWarning": "Tras la descarga, la clave privada se eliminará permanentemente de esta instancia UCM. Debe conservar el archivo descargado a salvo — es la única copia.",
+    "offlinePasswordHint": "Mínimo 12 caracteres. Esta contraseña cifra la clave privada.",
+    "offlinePasswordConfirm": "Confirmar contraseña",
+    "passwordMismatch": "Las contraseñas no coinciden",
+    "takeOfflineAndDownload": "Poner fuera de línea y descargar clave",
+    "restoreExplain": {
+      "title": "Restaurar CA",
+      "passwordProtected": "Esta CA se puso fuera de línea con protección por contraseña. Introduzca la contraseña para descifrar la clave privada y restaurar la firma.",
+      "fileExported": "Esta CA se puso fuera de línea con exportación de archivo de clave. Suba el archivo de clave cifrado e introduzca su contraseña para restaurar la firma."
+    },
+    "offlineKeyFile": "Archivo de clave cifrado",
+    "offlineKeyFilePick": "Elegir archivo de clave",
+    "offlineKeyFileTooLarge": "El archivo de clave es demasiado grande (máx. 256 KB)",
+    "restorePasswordHint": "La contraseña utilizada al poner la CA fuera de línea."
   },
   "csrs": {
     "uploadCSR": "Subir CSR",
@@ -1899,6 +1934,19 @@
     "encryptionDesc": "Cifra todas las claves privadas almacenadas en la base de datos usando AES-256. Protegidas por una clave maestra en /etc/ucm/master.key.",
     "enableEncryption": "Activar cifrado",
     "disableEncryption": "Desactivar cifrado",
+    "backupMasterKey": "Copia de seguridad de la clave maestra",
+    "masterKeyBackupTitle": "Haga una copia de seguridad de su clave maestra",
+    "masterKeyBackupCritical": "Crítico: haga una copia de esta clave AHORA",
+    "masterKeyBackupDesc": "Sin este archivo, todas las claves privadas cifradas (CA, certificados, cuentas ACME, CA SSH, secretos de webhook) se vuelven irrecuperables. Perderlo significa perder su PKI.",
+    "masterKeyBackupInstructions": "Descargue la clave maestra y guárdela en al menos dos lugares seguros, como:",
+    "masterKeyBackupTip1": "Un gestor de contraseñas (1Password, Bitwarden, KeePass)",
+    "masterKeyBackupTip2": "Una unidad USB cifrada sin conexión guardada en una caja fuerte",
+    "masterKeyBackupTip3": "El sistema de gestión de secretos de su organización (Vault, AWS Secrets Manager)",
+    "masterKeyDownloadNow": "Descargar clave maestra",
+    "masterKeyDownloadAgain": "Descargar de nuevo",
+    "masterKeyBackupConfirm": "He almacenado la clave maestra de forma segura y entiendo que perderla hace que todos los datos cifrados sean irrecuperables.",
+    "masterKeyDownloaded": "Clave maestra descargada",
+    "masterKeyDownloadFailed": "Error al descargar la clave maestra",
     "encryptionEnabled": "Cifrado activado. Todas las claves privadas están ahora cifradas.",
     "encryptionDisabled": "Cifrado desactivado. Las claves privadas se almacenan sin cifrar.",
     "encryptionEnableFailed": "Error al activar el cifrado",
@@ -1962,7 +2010,8 @@
       "webhooks": "Webhooks",
       "about": "Acerca de",
       "microsoftCA": "Microsoft CA",
-      "ct": "CT"
+      "ct": "CT",
+      "autoRenewal": "Auto-renovación"
     },
     "testRecipient": "Destinatario de prueba",
     "testRecipientRequired": "Ingrese una dirección de correo destinataria para la prueba",
@@ -2011,7 +2060,8 @@
       "notifications": "Notificaciones",
       "interface": "Interfaz",
       "about": "Info",
-      "integrations": "Integraciones"
+      "integrations": "Integraciones",
+      "automation": "Automatización"
     },
     "remoteSyslog": "Remote Syslog",
     "remoteSyslogDesc": "Forward audit log events to a remote syslog server for centralized logging and SIEM integration.",
@@ -2146,7 +2196,29 @@
     "smtpOauthSetup_microsoft_title": "Outlook.com (personal) — configuración Azure de una sola vez",
     "smtpOauthSetup_microsoft_steps": "Las aplicaciones de correo móvil (iOS Mail, Thunderbird, etc.) utilizan IDs de cliente publicados por Microsoft que no pueden compartir. Debido a que UCM es autohospedado, crea el suyo propio — es gratis y toma 5 minutos:\n\n1. Inicie sesión en Azure Portal con cualquier cuenta Microsoft (gratis, sin suscripción requerida).\n2. App registrations → New registration → elija 'Personal Microsoft accounts only'.\n3. Agregue el URI de redireccionamiento que se muestra a continuación (plataforma Web).\n4. Certificates & secrets → New client secret → copie el Valor.\n5. API permissions → agregue 'SMTP.Send' y 'offline_access' (Microsoft Graph, delegado).\n6. Copie el Application (client) ID y el Valor del secreto en los campos a continuación.",
     "smtpOauthSetup_microsoft365_title": "Cómo configurar Microsoft 365 (trabajo / escuela)",
-    "smtpOauthSetup_microsoft365_steps": "1. Inicie sesión en el Azure Portal como administrador de tenant.\n2. App registrations → New registration → elija 'Accounts in this organizational directory only' (o multitenant).\n3. Agregue el URI de redirección que se muestra a continuación (plataforma Web).\n4. Certificates & secrets → New client secret → copie el Value.\n5. API permissions → add 'SMTP.Send' y 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copie el Application (client) ID, el secret Value y su Tenant ID (Directory ID) en los campos a continuación."
+    "smtpOauthSetup_microsoft365_steps": "1. Inicie sesión en el Azure Portal como administrador de tenant.\n2. App registrations → New registration → elija 'Accounts in this organizational directory only' (o multitenant).\n3. Agregue el URI de redirección que se muestra a continuación (plataforma Web).\n4. Certificates & secrets → New client secret → copie el Value.\n5. API permissions → add 'SMTP.Send' y 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copie el Application (client) ID, el secret Value y su Tenant ID (Directory ID) en los campos a continuación.",
+    "autoRenewal": "Renovación automática",
+    "autoRenewalDescription": "Renueva certificados automáticamente antes de su vencimiento",
+    "autoRenewalEnabled": "Activar renovación automática",
+    "autoRenewalEnabledDesc": "El planificador se ejecuta cada 12 horas y renueva los certificados elegibles",
+    "autoRenewalDays": "Renovar cuando expire en (días)",
+    "autoRenewalDaysHelp": "Los certificados que expiran en estos días se renovarán automáticamente",
+    "autoRenewalSources": "Fuentes elegibles",
+    "autoRenewalSourcesHelp": "Solo se renovarán los certificados emitidos por los protocolos seleccionados",
+    "autoRenewalSource_scep": "SCEP",
+    "autoRenewalSource_acme": "ACME",
+    "autoRenewalSource_est": "EST",
+    "autoRenewalNotifications": "Notificaciones",
+    "autoRenewalNotifyOnRenewal": "Notificar renovaciones exitosas por email",
+    "autoRenewalNotifyOnFailure": "Notificar renovaciones fallidas por email",
+    "autoRenewalNotifyEmails": "Destinatarios de notificaciones",
+    "autoRenewalNotifyEmailsHelp": "Direcciones de email que reciben los informes de renovación",
+    "autoRenewalRunNow": "Ejecutar ahora",
+    "autoRenewalRunDisabled": "Active primero la renovación automática",
+    "autoRenewalRunSuccess": "Renovación completada: {{renewed}} renovados, {{failed}} fallidos",
+    "autoRenewalRunFailed": "Error en la renovación automática",
+    "autoRenewalSettingsUpdated": "Configuración de renovación automática actualizada",
+    "autoRenewalSettingsFailed": "Error al actualizar la configuración"
   },
   "account": {
     "profile": "Perfil",
@@ -2809,7 +2881,53 @@
     "toggleSuccess": "Webhook {{action}}",
     "toggleFailed": "Error al alternar webhook",
     "testSuccess": "Evento de prueba enviado con éxito",
-    "testFailed": "Error al enviar evento de prueba"
+    "testFailed": "Error al enviar evento de prueba",
+    "auth": {
+      "title": "Authentication",
+      "type": {
+        "label": "Auth Type",
+        "options": {
+          "none": "None",
+          "bearer": "Bearer Token",
+          "basic": "Basic Auth",
+          "api_key": "API Key (custom header)",
+          "custom": "Custom Header"
+        }
+      },
+      "token": {
+        "label": "Token",
+        "placeholder": "Enter token value",
+        "set": "Token set — leave blank to keep, or clear to remove",
+        "clear": "Clear token",
+        "show": "Show token",
+        "hide": "Hide token"
+      },
+      "username": {
+        "label": "Username"
+      },
+      "headerName": {
+        "label": "Header Name",
+        "placeholder": "X-API-Key"
+      },
+      "custom": {
+        "helper": "Include the auth scheme in the value, e.g. `auth-key YOUR_TOKEN`"
+      },
+      "apiKey": {
+        "authorizationWarning": "\"Authorization\" is reserved for Bearer/Basic. Use the Custom Header type instead to set Authorization directly."
+      },
+      "preview": {
+        "title": "Outgoing header preview",
+        "reveal": "Reveal",
+        "hide": "Hide"
+      },
+      "errors": {
+        "tokenRequired": "Token is required for this auth type",
+        "usernameRequired": "Username is required for Basic Auth",
+        "headerNameRequired": "Header name is required",
+        "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
+        "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    }
   },
   "safeMode": {
     "title": "Modo seguro",
@@ -3070,7 +3188,9 @@
         "template": "Plantilla creada exitosamente",
         "user": "Usuario creado exitosamente",
         "sshCa": "SSH CA created successfully",
-        "sshCertificate": "SSH certificate issued successfully"
+        "sshCertificate": "SSH certificate issued successfully",
+        "caOffline": "CA fuera de línea",
+        "caRestored": "CA restaurada a estado en línea"
       },
       "crl": {
         "generated": "CRL regenerada exitosamente"

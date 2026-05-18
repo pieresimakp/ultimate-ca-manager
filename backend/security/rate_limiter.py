@@ -3,6 +3,7 @@ Rate Limiting Module
 Per-endpoint rate limiting with configurable limits
 Configurable via environment variables in /etc/ucm/ucm.env
 """
+import ipaddress
 import os
 import time
 import logging
@@ -27,6 +28,22 @@ def _get_env_bool(key: str, default: bool) -> bool:
     """Get boolean from environment variable"""
     val = os.environ.get(key, str(default)).lower()
     return val in ('true', '1', 'yes', 'on')
+
+
+def _is_lan_ip(ip: str) -> bool:
+    """Return True if ``ip`` is RFC1918, loopback, or link-local.
+
+    UCM is a LAN-deployed PKI — clients hammering issuance from a private
+    subnet are the primary use case, not an attack vector. We auto-bypass
+    the rate limiter for these (gated by RATE_LIMIT_TRUST_LAN).
+    """
+    if not ip:
+        return False
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return addr.is_private or addr.is_loopback or addr.is_link_local
 
 
 class RateLimitConfig:
@@ -65,8 +82,10 @@ class RateLimitConfig:
         heavy_burst = _get_env_int('RATE_LIMIT_HEAVY_BURST', 15)
         
         # Standard API limits - higher for normal browsing
-        standard_rpm = _get_env_int('RATE_LIMIT_STANDARD_RPM', 300)
-        standard_burst = _get_env_int('RATE_LIMIT_STANDARD_BURST', 50)
+        # v2.155: bumped (300→600 rpm, 50→100 burst) — LAN deployments
+        # routinely fan out parallel requests from the UI.
+        standard_rpm = _get_env_int('RATE_LIMIT_STANDARD_RPM', 600)
+        standard_burst = _get_env_int('RATE_LIMIT_STANDARD_BURST', 100)
         
         # Protocol limits (ACME, SCEP, OCSP, CDP)
         protocol_rpm = _get_env_int('RATE_LIMIT_PROTOCOL_RPM', 500)
@@ -186,9 +205,19 @@ class RateLimitConfig:
     
     @classmethod
     def is_whitelisted(cls, ip: str) -> bool:
-        """Check if IP is whitelisted"""
+        """Check if IP is whitelisted.
+
+        v2.155: when ``RATE_LIMIT_TRUST_LAN`` is true (default), all
+        RFC1918 / loopback / link-local addresses bypass rate limiting.
+        UCM is on-prem PKI; the LAN is the primary use case, not the
+        attack surface.
+        """
         cls._load_limits()  # Load whitelist from env
-        return ip in cls._whitelist
+        if ip in cls._whitelist:
+            return True
+        if _get_env_bool('RATE_LIMIT_TRUST_LAN', True) and _is_lan_ip(ip):
+            return True
+        return False
     
     @classmethod
     def get_config(cls) -> Dict[str, Any]:
@@ -347,8 +376,9 @@ class RateLimiter:
                 self._buckets.clear()
 
 
-# Global rate limiter instance
-_rate_limiter: Optional[RateLimiter] = None
+# Global rate limiter instance — preserved across importlib.reload() so tests
+# that reload this module don't wipe out the instance held by middleware closures.
+_rate_limiter: Optional[RateLimiter] = globals().get('_rate_limiter')
 
 
 def get_rate_limiter() -> RateLimiter:
@@ -375,7 +405,7 @@ def init_rate_limiter(app=None) -> RateLimiter:
             if ip and ',' in ip:
                 ip = ip.split(',')[0].strip()
             
-            allowed, info = _rate_limiter.check_rate_limit(ip, request.path)
+            allowed, info = get_rate_limiter().check_rate_limit(ip, request.path)
             
             if not allowed:
                 from services.audit_service import AuditService

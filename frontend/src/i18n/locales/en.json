@@ -426,7 +426,8 @@
     "scanNetwork": "Scan network",
     "generateReport": "Generate report",
     "healthStatus": "Health status",
-    "remove": "Remove"
+    "remove": "Remove",
+    "continue": "Continue"
   },
   "commandPalette": {
     "searchPlaceholder": "Search commands, certificates, CAs, users...",
@@ -793,7 +794,7 @@
     "deleteCAButton": "Delete CA",
     "deleteFailed": "Failed to delete CA",
     "exportFailed": "Failed to export CA",
-    "passwordTooShort": "Password must be at least 4 characters",
+    "passwordTooShort": "Password must be at least 12 characters",
     "exportedAs": "CA exported as {{format}}",
     "createFailed": "Failed to create CA",
     "unnamedCA": "Unnamed CA",
@@ -805,6 +806,15 @@
     "certificateCount": "{{count}} certificates",
     "daysLeft": "{{count}} days left",
     "daysLeft_one": "{{count}} day left",
+    "offline": "Offline",
+    "offlinePassword": "Password",
+    "offlineMode": "Offline Mode",
+    "offlinePasswordProtected": "Password Protected",
+    "offlineFileExported": "Key File Exported",
+    "takeOffline": "Take Offline",
+    "restore": "Restore CA",
+    "offlineFailed": "Failed to take CA offline",
+    "restoreFailed": "Failed to restore CA",
     "descriptionPlaceholder": "Optional description for this CA",
     "advancedConstraints": "Advanced Constraints (RFC 5280)",
     "pathLength": "Path Length Constraint",
@@ -840,7 +850,32 @@
       "hsmBacked": "HSM-backed",
       "hsmKey": "HSM Key",
       "exportBlockedHsm": "HSM-backed key cannot be exported"
-    }
+    },
+    "offlineExplain": {
+      "title": "What does taking a CA offline do?",
+      "body": "An offline CA cannot sign new certificates or CRLs until restored. Use this for root CAs that should only be brought online for ceremonies.",
+      "bullet1": "All certificate signing is blocked",
+      "bullet2": "CRL generation is blocked",
+      "bullet3": "Existing certificates remain valid"
+    },
+    "offlineModeDesc": {
+      "passwordProtected": "Encrypt the private key in the database with your password. The CA stays in UCM and is restored by entering the password.",
+      "fileExported": "Export the encrypted private key as a file and remove it from the database. UCM no longer holds the key — store the file in a safe place."
+    },
+    "offlineFileExportedWarning": "After download, the private key will be permanently removed from this UCM instance. You must keep the downloaded file safe — it is the only copy.",
+    "offlinePasswordHint": "Minimum 12 characters. This password encrypts the private key.",
+    "offlinePasswordConfirm": "Confirm password",
+    "passwordMismatch": "Passwords do not match",
+    "takeOfflineAndDownload": "Take offline & download key",
+    "restoreExplain": {
+      "title": "Restore CA",
+      "passwordProtected": "This CA was taken offline with password protection. Enter the password to decrypt the private key and restore signing.",
+      "fileExported": "This CA was taken offline with key file export. Upload the encrypted key file and enter its password to restore signing."
+    },
+    "offlineKeyFile": "Encrypted key file",
+    "offlineKeyFilePick": "Choose key file",
+    "offlineKeyFileTooLarge": "Key file is too large (max 256 KB)",
+    "restorePasswordHint": "The password used when the CA was taken offline."
   },
   "csrs": {
     "uploadCSR": "Upload CSR",
@@ -1901,6 +1936,19 @@
     "encryptionDesc": "Encrypt all private keys stored in the database using AES-256. Keys are protected by a master key stored at /etc/ucm/master.key.",
     "enableEncryption": "Enable Encryption",
     "disableEncryption": "Disable Encryption",
+    "backupMasterKey": "Back Up Master Key",
+    "masterKeyBackupTitle": "Back Up Your Master Key",
+    "masterKeyBackupCritical": "Critical: back up this key NOW",
+    "masterKeyBackupDesc": "Without this file, all encrypted private keys (CAs, certificates, ACME accounts, SSH CA, webhook secrets) become unrecoverable. Losing it means losing your PKI.",
+    "masterKeyBackupInstructions": "Download the master key and store it in at least two safe places, such as:",
+    "masterKeyBackupTip1": "A password manager vault (1Password, Bitwarden, KeePass)",
+    "masterKeyBackupTip2": "An offline encrypted USB drive kept in a safe",
+    "masterKeyBackupTip3": "Your organization's secrets management system (Vault, AWS Secrets Manager)",
+    "masterKeyDownloadNow": "Download Master Key",
+    "masterKeyDownloadAgain": "Download Again",
+    "masterKeyBackupConfirm": "I have securely stored the master key and understand that losing it makes all encrypted data unrecoverable.",
+    "masterKeyDownloaded": "Master key downloaded",
+    "masterKeyDownloadFailed": "Failed to download master key",
     "encryptionEnabled": "Encryption enabled successfully. All private keys are now encrypted.",
     "encryptionDisabled": "Encryption disabled. Private keys are now stored unencrypted.",
     "encryptionEnableFailed": "Failed to enable encryption",
@@ -1964,7 +2012,8 @@
       "webhooks": "Webhooks",
       "about": "About",
       "microsoftCA": "Microsoft CA",
-      "ct": "CT"
+      "ct": "CT",
+      "autoRenewal": "Auto-Renewal"
     },
     "testRecipient": "Test recipient",
     "testRecipientRequired": "Enter a recipient email address for the test",
@@ -2013,7 +2062,8 @@
       "notifications": "Notifications",
       "interface": "Interface",
       "about": "Info",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "automation": "Automation"
     },
     "remoteSyslog": "Remote Syslog",
     "remoteSyslogDesc": "Forward audit log events to a remote syslog server for centralized logging and SIEM integration.",
@@ -2148,7 +2198,29 @@
     "smtpOauthSetup_microsoft_title": "Outlook.com (personal) — one-time Azure setup",
     "smtpOauthSetup_microsoft_steps": "Mobile mail apps (iOS Mail, Thunderbird, etc.) use Microsoft-published client IDs they cannot share. Because UCM is self-hosted, you create your own — it's free and takes 5 minutes:\n\n1. Sign in at the Azure Portal with any Microsoft account (free, no subscription needed).\n2. App registrations → New registration → choose 'Personal Microsoft accounts only'.\n3. Add the redirect URI shown below (Web platform).\n4. Certificates & secrets → New client secret → copy the Value.\n5. API permissions → add 'SMTP.Send' and 'offline_access' (Microsoft Graph, delegated).\n6. Copy the Application (client) ID and the secret Value into the fields below.",
     "smtpOauthSetup_microsoft365_title": "How to set up Microsoft 365 (work / school)",
-    "smtpOauthSetup_microsoft365_steps": "1. Sign in at the Azure Portal as a tenant admin.\n2. App registrations → New registration → choose 'Accounts in this organizational directory only' (or multitenant).\n3. Add the redirect URI shown below (Web platform).\n4. Certificates & secrets → New client secret → copy the Value.\n5. API permissions → add 'SMTP.Send' and 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copy the Application (client) ID, the secret Value, and your Tenant ID (Directory ID) into the fields below."
+    "smtpOauthSetup_microsoft365_steps": "1. Sign in at the Azure Portal as a tenant admin.\n2. App registrations → New registration → choose 'Accounts in this organizational directory only' (or multitenant).\n3. Add the redirect URI shown below (Web platform).\n4. Certificates & secrets → New client secret → copy the Value.\n5. API permissions → add 'SMTP.Send' and 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copy the Application (client) ID, the secret Value, and your Tenant ID (Directory ID) into the fields below.",
+    "autoRenewal": "Auto-Renewal",
+    "autoRenewalDescription": "Automatically renew certificates before they expire",
+    "autoRenewalEnabled": "Enable automatic renewal",
+    "autoRenewalEnabledDesc": "Scheduler runs every 12 hours and renews eligible certificates",
+    "autoRenewalDays": "Renew when expiring within (days)",
+    "autoRenewalDaysHelp": "Certificates expiring within this many days will be auto-renewed",
+    "autoRenewalSources": "Eligible sources",
+    "autoRenewalSourcesHelp": "Only certificates issued via the selected protocols will be renewed",
+    "autoRenewalSource_scep": "SCEP",
+    "autoRenewalSource_acme": "ACME",
+    "autoRenewalSource_est": "EST",
+    "autoRenewalNotifications": "Notifications",
+    "autoRenewalNotifyOnRenewal": "Email me on successful renewals",
+    "autoRenewalNotifyOnFailure": "Email me on failed renewals",
+    "autoRenewalNotifyEmails": "Notification recipients",
+    "autoRenewalNotifyEmailsHelp": "Email addresses to receive auto-renewal reports",
+    "autoRenewalRunNow": "Run now",
+    "autoRenewalRunDisabled": "Enable auto-renewal first",
+    "autoRenewalRunSuccess": "Auto-renewal completed: {{renewed}} renewed, {{failed}} failed",
+    "autoRenewalRunFailed": "Auto-renewal run failed",
+    "autoRenewalSettingsUpdated": "Auto-renewal settings updated",
+    "autoRenewalSettingsFailed": "Failed to update auto-renewal settings"
   },
   "account": {
     "profile": "Profile",
@@ -2813,7 +2885,53 @@
     "toggleSuccess": "Webhook {{action}}",
     "toggleFailed": "Failed to toggle webhook",
     "testSuccess": "Test event sent successfully",
-    "testFailed": "Failed to send test event"
+    "testFailed": "Failed to send test event",
+    "auth": {
+      "title": "Authentication",
+      "type": {
+        "label": "Auth Type",
+        "options": {
+          "none": "None",
+          "bearer": "Bearer Token",
+          "basic": "Basic Auth",
+          "api_key": "API Key (custom header)",
+          "custom": "Custom Header"
+        }
+      },
+      "token": {
+        "label": "Token",
+        "placeholder": "Enter token value",
+        "set": "Token set — leave blank to keep, or clear to remove",
+        "clear": "Clear token",
+        "show": "Show token",
+        "hide": "Hide token"
+      },
+      "username": {
+        "label": "Username"
+      },
+      "headerName": {
+        "label": "Header Name",
+        "placeholder": "X-API-Key"
+      },
+      "custom": {
+        "helper": "Include the auth scheme in the value, e.g. `auth-key YOUR_TOKEN`"
+      },
+      "apiKey": {
+        "authorizationWarning": "\"Authorization\" is reserved for Bearer/Basic. Use the Custom Header type instead to set Authorization directly."
+      },
+      "preview": {
+        "title": "Outgoing header preview",
+        "reveal": "Reveal",
+        "hide": "Hide"
+      },
+      "errors": {
+        "tokenRequired": "Token is required for this auth type",
+        "usernameRequired": "Username is required for Basic Auth",
+        "headerNameRequired": "Header name is required",
+        "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
+        "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    }
   },
   "safeMode": {
     "title": "Safe Mode",
@@ -3217,7 +3335,9 @@
         "key": "Key generated",
         "generic": "Created successfully",
         "sshCa": "SSH CA created successfully",
-        "sshCertificate": "SSH certificate issued successfully"
+        "sshCertificate": "SSH certificate issued successfully",
+        "caOffline": "CA taken offline",
+        "caRestored": "CA restored to online state"
       },
       "update": {
         "certificate": "Certificate updated successfully",

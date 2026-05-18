@@ -227,6 +227,10 @@ export default function CAsPage() {
     }
   }
 
+  // CA offline / restore are driven by TakeOfflineModal / RestoreModal in
+  // CADetailsPanel — they call casService directly and dispatch
+  // 'ucm:data-changed' which this page already listens to.
+
   // Check if intermediate CA is orphan
   const isOrphanIntermediate = useCallback((ca) => {
     if (ca.type !== 'intermediate') return false

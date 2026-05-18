@@ -2,14 +2,17 @@
  * CAs Page — detail panel for selected CA (mobile slide-over)
  */
 import { useState } from 'react'
-import { Download, Trash, Certificate, Clock } from '@phosphor-icons/react'
+import { Download, Trash, Certificate, Clock, ShieldWarning, ShieldCheck } from '@phosphor-icons/react'
 import {
   Badge, Button,
   CompactSection, CompactGrid, CompactField, CompactStats,
   CATypeIcon
 } from '../../components'
 import { ExportModal } from '../../components/ExportModal'
+import { TakeOfflineModal } from '../../components/cas/TakeOfflineModal'
+import { RestoreModal } from '../../components/cas/RestoreModal'
 import { formatDate } from '../../lib/utils'
+import { useNotification } from '../../contexts/NotificationContext'
 
 // =============================================================================
 // CA DETAILS PANEL
@@ -17,6 +20,8 @@ import { formatDate } from '../../lib/utils'
 
 export function CADetailsPanel({ ca, canWrite, canDelete, onExport, onDelete, t }) {
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showOfflineModal, setShowOfflineModal] = useState(false)
+  const [showRestoreModal, setShowRestoreModal] = useState(false)
   return (
     <>
     <div className="p-3 space-y-3">
@@ -43,11 +48,34 @@ export function CADetailsPanel({ ca, canWrite, canDelete, onExport, onDelete, t 
         </div>
       </div>
 
+      {/* Offline banner */}
+      {ca.offline && (
+        <div className="rounded-lg px-3 py-2 bg-status-warning/20 border border-status-warning/40">
+          <div className="flex items-center gap-2 text-status-warning">
+            <ShieldWarning size={16} />
+            <span className="text-xs font-medium">{t('cas.offline')}</span>
+          </div>
+          {canWrite('cas') && (
+            <Button
+              type="button"
+              size="xs"
+              variant="secondary"
+              className="mt-1.5"
+              onClick={() => setShowRestoreModal(true)}
+            >
+              {t('cas.restore')}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Stats */}
       <CompactStats stats={[
         { icon: Certificate, value: t('cas.certificateCount', { count: ca.certs || 0 }) },
         { icon: Clock, value: ca.valid_to ? formatDate(ca.valid_to, 'short') : '—' },
-        { badge: ca.status, badgeVariant: ca.status === 'Active' ? 'success' : 'danger' }
+        ca.offline
+          ? { badge: t('cas.offline'), badgeVariant: 'warning' }
+          : { badge: ca.status, badgeVariant: ca.status === 'Active' ? 'success' : 'danger' }
       ]} />
 
       {/* Export + Delete Actions */}
@@ -55,6 +83,16 @@ export function CADetailsPanel({ ca, canWrite, canDelete, onExport, onDelete, t 
         <Button type="button" size="xs" variant="secondary" onClick={() => setShowExportModal(true)}>
           <Download size={14} /> {t('export.title')}
         </Button>
+        {canWrite('cas') && !ca.offline && (
+          <Button
+            type="button"
+            size="xs"
+            variant="danger"
+            onClick={() => setShowOfflineModal(true)}
+          >
+            <ShieldWarning size={12} className="sm:w-3.5 sm:h-3.5" /> {t('cas.takeOffline')}
+          </Button>
+        )}
         {canDelete('cas') && (
           <Button type="button" size="xs" variant="danger" onClick={onDelete} className="sm:!h-8 sm:!px-3">
             <Trash size={12} className="sm:w-3.5 sm:h-3.5" />
@@ -121,6 +159,18 @@ export function CADetailsPanel({ ca, canWrite, canDelete, onExport, onDelete, t 
       canExportKey={canWrite('cas') && !ca.uses_hsm}
       isHsmBacked={!!ca.uses_hsm}
       onExport={onExport}
+    />
+
+    <TakeOfflineModal
+      open={showOfflineModal}
+      onClose={() => setShowOfflineModal(false)}
+      ca={ca}
+    />
+
+    <RestoreModal
+      open={showRestoreModal}
+      onClose={() => setShowRestoreModal(false)}
+      ca={ca}
     />
     </>
   )

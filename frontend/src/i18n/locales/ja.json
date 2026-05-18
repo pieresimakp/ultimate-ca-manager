@@ -425,7 +425,8 @@
     "scanNetwork": "ネットワークスキャン",
     "generateReport": "レポート生成",
     "healthStatus": "ヘルスステータス",
-    "remove": "削除"
+    "remove": "削除",
+    "continue": "続行"
   },
   "commandPalette": {
     "searchPlaceholder": "コマンド、証明書、CA、ユーザーを検索...",
@@ -792,7 +793,7 @@
     "deleteCAButton": "CAを削除",
     "deleteFailed": "CAの削除に失敗しました",
     "exportFailed": "CAのエクスポートに失敗しました",
-    "passwordTooShort": "パスワードは4文字以上である必要があります",
+    "passwordTooShort": "パスワードは 12 文字以上である必要があります",
     "exportedAs": "CAを{{format}}としてエクスポートしました",
     "createFailed": "CAの作成に失敗しました",
     "unnamedCA": "名称未設定のCA",
@@ -804,6 +805,15 @@
     "certificateCount": "{{count}}個の証明書",
     "daysLeft": "残り{{count}}日",
     "daysLeft_one": "{{count}} day left",
+    "offline": "オフライン",
+    "offlinePassword": "パスワード",
+    "offlineMode": "オフラインモード",
+    "offlinePasswordProtected": "パスワード保護",
+    "offlineFileExported": "キーファイルのエクスポート",
+    "takeOffline": "オフラインにする",
+    "restore": "CAを復元",
+    "offlineFailed": "CAのオフライン化に失敗しました",
+    "restoreFailed": "CAの復元に失敗しました",
     "descriptionPlaceholder": "このCAの任意の説明",
     "advancedConstraints": "高度な制約 (RFC 5280)",
     "pathLength": "パス長制約",
@@ -839,7 +849,32 @@
       "hsmBacked": "HSM バック",
       "hsmKey": "HSM 鍵",
       "exportBlockedHsm": "HSM バックの鍵はエクスポートできません"
-    }
+    },
+    "offlineExplain": {
+      "title": "CA をオフラインにすると何が起きますか?",
+      "body": "オフラインの CA は復元するまで新しい証明書や CRL に署名できません。式典のときだけオンラインにするルート CA に使用します。",
+      "bullet1": "すべての証明書署名がブロックされます",
+      "bullet2": "CRL の生成がブロックされます",
+      "bullet3": "既存の証明書は有効なままです"
+    },
+    "offlineModeDesc": {
+      "passwordProtected": "データベース内の秘密鍵をパスワードで暗号化します。CA は UCM に残り、パスワードを入力すると復元されます。",
+      "fileExported": "暗号化された秘密鍵をファイルとしてエクスポートし、データベースから削除します。UCM は鍵を保持しません — ファイルを安全に保管してください。"
+    },
+    "offlineFileExportedWarning": "ダウンロード後、秘密鍵はこの UCM インスタンスから完全に削除されます。ダウンロードしたファイルは安全に保管してください — これが唯一のコピーです。",
+    "offlinePasswordHint": "最低 12 文字。このパスワードで秘密鍵を暗号化します。",
+    "offlinePasswordConfirm": "パスワード（確認）",
+    "passwordMismatch": "パスワードが一致しません",
+    "takeOfflineAndDownload": "オフラインにして鍵をダウンロード",
+    "restoreExplain": {
+      "title": "CA を復元",
+      "passwordProtected": "この CA はパスワード保護でオフラインにされました。パスワードを入力して秘密鍵を復号し、署名を復元します。",
+      "fileExported": "この CA は鍵ファイルエクスポートでオフラインにされました。暗号化された鍵ファイルをアップロードし、パスワードを入力して署名を復元します。"
+    },
+    "offlineKeyFile": "暗号化された鍵ファイル",
+    "offlineKeyFilePick": "鍵ファイルを選択",
+    "offlineKeyFileTooLarge": "鍵ファイルが大きすぎます（最大 256 KB）",
+    "restorePasswordHint": "CA をオフラインにしたときに使用したパスワード。"
   },
   "csrs": {
     "uploadCSR": "CSRをアップロード",
@@ -1899,6 +1934,19 @@
     "encryptionDesc": "データベースに保存されたすべての秘密鍵をAES-256で暗号化します。/etc/ucm/master.keyのマスターキーで保護されます。",
     "enableEncryption": "暗号化を有効化",
     "disableEncryption": "暗号化を無効化",
+    "backupMasterKey": "マスターキーをバックアップ",
+    "masterKeyBackupTitle": "マスターキーをバックアップしてください",
+    "masterKeyBackupCritical": "重要: 今すぐこのキーをバックアップしてください",
+    "masterKeyBackupDesc": "このファイルがないと、暗号化されたすべての秘密鍵 (CA、証明書、ACMEアカウント、SSH CA、Webhook シークレット) は復元不可能になります。失うことは PKI を失うことを意味します。",
+    "masterKeyBackupInstructions": "マスターキーをダウンロードし、少なくとも2か所の安全な場所に保管してください。例:",
+    "masterKeyBackupTip1": "パスワードマネージャー (1Password、Bitwarden、KeePass)",
+    "masterKeyBackupTip2": "金庫に保管されたオフラインの暗号化 USB ドライブ",
+    "masterKeyBackupTip3": "組織のシークレット管理システム (Vault、AWS Secrets Manager)",
+    "masterKeyDownloadNow": "マスターキーをダウンロード",
+    "masterKeyDownloadAgain": "再ダウンロード",
+    "masterKeyBackupConfirm": "マスターキーを安全に保管しました。失うとすべての暗号化データが復元不可能になることを理解しています。",
+    "masterKeyDownloaded": "マスターキーをダウンロードしました",
+    "masterKeyDownloadFailed": "マスターキーのダウンロードに失敗しました",
     "encryptionEnabled": "暗号化が有効になりました。すべての秘密鍵が暗号化されています。",
     "encryptionDisabled": "暗号化が無効になりました。秘密鍵は暗号化されずに保存されます。",
     "encryptionEnableFailed": "暗号化の有効化に失敗しました",
@@ -1962,7 +2010,8 @@
       "webhooks": "Webhooks",
       "about": "概要",
       "microsoftCA": "Microsoft CA",
-      "ct": "CT"
+      "ct": "CT",
+      "autoRenewal": "自動更新"
     },
     "testRecipient": "テスト送信先",
     "testRecipientRequired": "テスト用の送信先メールアドレスを入力してください",
@@ -2011,7 +2060,8 @@
       "notifications": "通知",
       "interface": "インターフェース",
       "about": "情報",
-      "integrations": "統合"
+      "integrations": "統合",
+      "automation": "自動化"
     },
     "remoteSyslog": "Remote Syslog",
     "remoteSyslogDesc": "Forward audit log events to a remote syslog server for centralized logging and SIEM integration.",
@@ -2146,7 +2196,29 @@
     "smtpOauthSetup_microsoft_title": "Outlook.com (個人用) — ワンタイム Azure セットアップ",
     "smtpOauthSetup_microsoft_steps": "モバイルメールアプリ (iOS Mail、Thunderbird など) は Microsoft が公開するクライアント ID を使用していますが、共有できません。UCM は自己ホストされているため、独自のクライアント ID を作成します — 無料で 5 分で完了します:\n\n1. Azure Portal に Microsoft アカウント (無料、サブスクリプション不要) でサインインします。\n2. App registrations → New registration → 'Personal Microsoft accounts only' を選択します。\n3. 下に表示されたリダイレクト URI を追加します (Web プラットフォーム)。\n4. Certificates & secrets → New client secret → Value をコピーします。\n5. API permissions → 'SMTP.Send' および 'offline_access' を追加します (Microsoft Graph、委任)。\n6. Application (client) ID とシークレット値を下のフィールドにコピーします。",
     "smtpOauthSetup_microsoft365_title": "Microsoft 365 のセットアップ（仕事 / 学校）",
-    "smtpOauthSetup_microsoft365_steps": "1. テナント管理者として Azure Portal にサインインします。\n2. App registrations → New registration → 'Accounts in this organizational directory only'（またはマルチテナント）を選択します。\n3. 下に表示されるリダイレクト URI（Web プラットフォーム）を追加します。\n4. Certificates & secrets → New client secret → Value をコピーします。\n5. API permissions → 'SMTP.Send' と 'offline_access' を追加（Microsoft Graph、委任）→ Grant admin consent。\n6. Application (client) ID、シークレット Value、テナント ID（Directory ID）を以下のフィールドにコピーします。"
+    "smtpOauthSetup_microsoft365_steps": "1. テナント管理者として Azure Portal にサインインします。\n2. App registrations → New registration → 'Accounts in this organizational directory only'（またはマルチテナント）を選択します。\n3. 下に表示されるリダイレクト URI（Web プラットフォーム）を追加します。\n4. Certificates & secrets → New client secret → Value をコピーします。\n5. API permissions → 'SMTP.Send' と 'offline_access' を追加（Microsoft Graph、委任）→ Grant admin consent。\n6. Application (client) ID、シークレット Value、テナント ID（Directory ID）を以下のフィールドにコピーします。",
+    "autoRenewal": "自動更新",
+    "autoRenewalDescription": "証明書の有効期限前に自動的に更新",
+    "autoRenewalEnabled": "自動更新を有効化",
+    "autoRenewalEnabledDesc": "スケジューラは12時間ごとに実行され、対象の証明書を更新します",
+    "autoRenewalDays": "有効期限残り日数で更新（日）",
+    "autoRenewalDaysHelp": "この日数以内に期限切れになる証明書は自動更新されます",
+    "autoRenewalSources": "対象ソース",
+    "autoRenewalSourcesHelp": "選択したプロトコルで発行された証明書のみが更新されます",
+    "autoRenewalSource_scep": "SCEP",
+    "autoRenewalSource_acme": "ACME",
+    "autoRenewalSource_est": "EST",
+    "autoRenewalNotifications": "通知",
+    "autoRenewalNotifyOnRenewal": "更新成功時にメール通知",
+    "autoRenewalNotifyOnFailure": "更新失敗時にメール通知",
+    "autoRenewalNotifyEmails": "通知先メールアドレス",
+    "autoRenewalNotifyEmailsHelp": "自動更新レポートを受信するメールアドレス",
+    "autoRenewalRunNow": "今すぐ実行",
+    "autoRenewalRunDisabled": "先に自動更新を有効にしてください",
+    "autoRenewalRunSuccess": "自動更新完了: {{renewed}} 件更新、{{failed}} 件失敗",
+    "autoRenewalRunFailed": "自動更新の実行に失敗しました",
+    "autoRenewalSettingsUpdated": "自動更新設定を更新しました",
+    "autoRenewalSettingsFailed": "自動更新設定の更新に失敗しました"
   },
   "account": {
     "profile": "プロフィール",
@@ -2809,7 +2881,53 @@
     "toggleSuccess": "Webhook {{action}}",
     "toggleFailed": "Failed to toggle webhook",
     "testSuccess": "Test event sent successfully",
-    "testFailed": "Failed to send test event"
+    "testFailed": "Failed to send test event",
+    "auth": {
+      "title": "Authentication",
+      "type": {
+        "label": "Auth Type",
+        "options": {
+          "none": "None",
+          "bearer": "Bearer Token",
+          "basic": "Basic Auth",
+          "api_key": "API Key (custom header)",
+          "custom": "Custom Header"
+        }
+      },
+      "token": {
+        "label": "Token",
+        "placeholder": "Enter token value",
+        "set": "Token set — leave blank to keep, or clear to remove",
+        "clear": "Clear token",
+        "show": "Show token",
+        "hide": "Hide token"
+      },
+      "username": {
+        "label": "Username"
+      },
+      "headerName": {
+        "label": "Header Name",
+        "placeholder": "X-API-Key"
+      },
+      "custom": {
+        "helper": "Include the auth scheme in the value, e.g. `auth-key YOUR_TOKEN`"
+      },
+      "apiKey": {
+        "authorizationWarning": "\"Authorization\" is reserved for Bearer/Basic. Use the Custom Header type instead to set Authorization directly."
+      },
+      "preview": {
+        "title": "Outgoing header preview",
+        "reveal": "Reveal",
+        "hide": "Hide"
+      },
+      "errors": {
+        "tokenRequired": "Token is required for this auth type",
+        "usernameRequired": "Username is required for Basic Auth",
+        "headerNameRequired": "Header name is required",
+        "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
+        "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    }
   },
   "safeMode": {
     "title": "セーフモード",
@@ -3070,7 +3188,9 @@
         "template": "テンプレートが作成されました",
         "user": "ユーザーが作成されました",
         "sshCa": "SSH CA created successfully",
-        "sshCertificate": "SSH certificate issued successfully"
+        "sshCertificate": "SSH certificate issued successfully",
+        "caOffline": "CAがオフラインになりました",
+        "caRestored": "CAがオンラインに復旧しました"
       },
       "crl": {
         "generated": "CRLが再生成されました"

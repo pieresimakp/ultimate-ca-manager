@@ -97,6 +97,13 @@ def regenerate_crl(ca_id):
     if not ca.has_private_key:
         return error_response(f'CA "{ca.descr}" does not have a private key - cannot sign CRL', 400)
         
+    # Check offline status
+    if ca.offline:
+        return error_response(
+            f"Cannot regenerate CRL: CA '{ca.descr}' is offline ({ca.offline_reason or 'no reason provided'})",
+            400
+        )
+    
     try:
         crl_metadata = CRLService.generate_crl(ca.id, username=getattr(g, 'user', {}).get('username', 'admin') if hasattr(g, 'user') else 'admin')
         

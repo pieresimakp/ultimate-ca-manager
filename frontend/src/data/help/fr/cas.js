@@ -33,15 +33,29 @@ export default {
           { label: 'Prérequis', text: 'Configurer et connecter un fournisseur HSM dans la gestion HSM au préalable' },
         ]
       },
+      {
+        title: 'Mode hors ligne',
+        items: [
+          { label: 'Objectif', text: "Protéger la clé privée d'une CA (typiquement une racine) contre l'usage runtime tout en gardant le certificat, la chaîne, la CRL et l'OCSP disponibles" },
+          { label: 'Protégée par mot de passe', text: 'La clé est chiffrée avec un mot de passe utilisateur (PKCS#8) et reste en base. Restauration en saisissant le mot de passe.' },
+          { label: 'Exportée en fichier', text: 'La clé est exportée en PEM chiffré téléchargeable une fois et retirée de la base. Restauration en re-téléversant le fichier avec son mot de passe.' },
+          { label: 'Politique de mot de passe', text: "Le mot de passe suit la politique de complexité UCM (longueur et classes de caractères). S'il est perdu, la clé est irrécupérable." },
+          { label: 'Effet sur la signature', text: "La signature de CSR, l'émission de certificats et le renouvellement de la CA sont bloqués hors ligne. CRL et OCSP continuent depuis les signatures en cache." },
+          { label: 'Sous-CA', text: 'Les CA racines et intermédiaires peuvent être mises hors ligne indépendamment' },
+        ]
+      },
     ],
     tips: [
       'Les CA avec une icône de clé (🔑) possèdent une clé privée et peuvent signer des certificats',
       'Utilisez des CA intermédiaires pour la signature quotidienne, gardez la CA racine hors ligne si possible',
       'L\'exportation PKCS#12 inclut la chaîne complète et est idéale pour la sauvegarde',
+      'Mettez la CA racine hors ligne dès que vos intermédiaires sont opérationnelles',
+      'Utilisez « Exportée en fichier » pour le meilleur isolement air-gap ; « Protégée par mot de passe » pour une restauration rapide en place',
     ],
     warnings: [
       'Supprimer une CA ne révoquera PAS les certificats qu\'elle a émis — révoquez-les d\'abord',
       'Les clés privées sont stockées chiffrées ; perdre la base de données signifie perdre les clés',
+      'Les mots de passe du mode hors ligne ne sont PAS récupérables — stockez-les dans votre coffre-fort avant de confirmer',
     ],
   },
   helpGuides: {
@@ -163,6 +177,49 @@ UCM peut stocker la clé de signature d'une CA sur un module matériel de sécur
 - Les clés privées adossées HSM **ne peuvent pas être exportées**. Les options d'export PKCS#12, JKS et clé seule sont masquées pour les CA HSM. Seul le certificat (PEM/DER/P7B) peut être exporté.
 - Il n'y a **pas de migration en place** entre Local et HSM. Pour « déplacer » une CA locale existante sur un HSM, créez une nouvelle CA sur le HSM et réémettez les certificats.
 - Les clés existantes proposées dans *Utiliser une clé existante* sont filtrées sur les clés asymétriques de signature non encore liées à une autre CA.
+
+## Mode hors ligne
+
+Sortez la clé de signature d'une CA de l'usage runtime sans supprimer la CA. Le certificat, la chaîne, la CRL et l'OCSP continuent de fonctionner — seules les opérations de signature (signer un CSR, émettre un certificat, renouveler la CA) sont bloquées.
+
+C'est la façon standard de protéger une CA racine entre des cérémonies rares, tout en gardant son ancre de confiance et son infrastructure de révocation en ligne.
+
+### Deux modes
+
+**Protégée par mot de passe** — la clé privée reste en base de données UCM, chiffrée (PKCS#8) avec un mot de passe que vous choisissez. Pour remettre la CA en ligne, cliquez sur **Restaurer** et ressaisissez le mot de passe. Rapide et pratique ; la sécurité dépend de la robustesse du mot de passe et de la non-compromission d'UCM.
+
+**Exportée en fichier** — la clé privée est exportée en fichier PEM chiffré par mot de passe téléchargé une fois. La clé est ensuite **retirée de la base**. Pour remettre la CA en ligne, cliquez sur **Restaurer**, téléversez le fichier et saisissez le mot de passe. C'est l'option la plus forte (vrai air-gap) mais vous êtes pleinement responsable du fichier : si vous le perdez, la clé est irrécupérable.
+
+### Règles de mot de passe
+Le mot de passe suit la politique de complexité standard UCM : longueur minimale, mélange de classes de caractères, pas de séquences triviales. Mêmes règles que les mots de passe utilisateurs.
+
+### Étape par étape — Mettre hors ligne
+1. Ouvrez le panneau de détails de la CA
+2. Cliquez sur **Mettre hors ligne**
+3. Lisez l'explication, cliquez sur **Continuer**
+4. Choisissez un mode (*Protégée par mot de passe* ou *Exportée en fichier*)
+5. Saisissez le mot de passe deux fois
+6. Confirmez. Pour *Exportée en fichier*, la clé chiffrée est téléchargée immédiatement — stockez-la en sécurité.
+
+### Étape par étape — Restaurer
+1. Ouvrez le panneau de détails de la CA hors ligne
+2. Cliquez sur **Restaurer**
+3. Saisissez le mot de passe
+4. Pour *Exportée en fichier* : sélectionnez aussi le fichier de clé téléchargé précédemment
+5. Confirmez. Les opérations de signature reprennent immédiatement.
+
+### Effet sur les opérations
+| Opération | En ligne | Hors ligne |
+|---|---|---|
+| Émettre un certificat | Autorisé | **Bloqué** |
+| Signer un CSR | Autorisé | **Bloqué** |
+| Renouveler la CA | Autorisé | **Bloqué** |
+| Renouveler un certificat émis | Autorisé | **Bloqué** |
+| Servir CRL / OCSP | Autorisé | Autorisé (signature en cache) |
+| Exporter le certificat / la chaîne | Autorisé | Autorisé |
+| Supprimer la CA | Autorisé | Autorisé |
+
+> ⚠ Les mots de passe du mode hors ligne ne sont **pas récupérables**. Stockez-les dans votre coffre-fort avant de confirmer. Mot de passe perdu = CA inutilisable = réémission complète de la hiérarchie subordonnée.
 `
   }
 }

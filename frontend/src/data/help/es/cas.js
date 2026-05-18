@@ -33,15 +33,29 @@ export default {
           { label: 'Requisito previo', text: 'Configure y conecte un proveedor HSM en Gestión HSM primero' },
         ]
       },
+      {
+        title: 'Modo sin conexión',
+        items: [
+          { label: 'Propósito', text: 'Proteger la clave privada de una CA (típicamente una raíz) del uso en tiempo de ejecución manteniendo disponibles el certificado, la cadena, la CRL y OCSP' },
+          { label: 'Protegida con contraseña', text: 'La clave se cifra con una contraseña proporcionada por el usuario (PKCS#8) y permanece en la base de datos. Restauración introduciendo la contraseña.' },
+          { label: 'Exportada a archivo', text: 'La clave se exporta como un PEM cifrado descargable una vez y se elimina de la base de datos. Restauración volviendo a subir el archivo con la contraseña.' },
+          { label: 'Política de contraseña', text: 'La contraseña sigue las reglas de complejidad de UCM (longitud y clases de caracteres). Si se pierde, la clave es irrecuperable.' },
+          { label: 'Efecto en la firma', text: 'La firma de CSR, la emisión de certificados y la renovación de la CA están bloqueadas sin conexión. CRL y OCSP siguen funcionando con firmas en caché.' },
+          { label: 'Sub-CAs', text: 'Tanto las CAs raíces como las intermedias pueden ponerse sin conexión de forma independiente' },
+        ]
+      },
     ],
     tips: [
       'Las CAs con un icono de llave (🔑) tienen clave privada y pueden firmar certificados',
       'Usa CAs intermedias para la firma diaria, mantén la CA raíz fuera de línea cuando sea posible',
       'La exportación PKCS#12 incluye la cadena completa y es ideal para respaldo',
+      'Ponga la CA raíz sin conexión tan pronto como sus intermedias estén operativas',
+      'Use «Exportada a archivo» para el mayor aislamiento air-gap; «Protegida con contraseña» para una restauración rápida in situ',
     ],
     warnings: [
       'Eliminar una CA NO revocará los certificados que haya emitido — revócalos primero',
       'Las claves privadas se almacenan cifradas; perder la base de datos significa perder las claves',
+      'Las contraseñas del modo sin conexión NO son recuperables — guárdelas en su gestor de contraseñas / vault antes de confirmar',
     ],
   },
   helpGuides: {
@@ -163,6 +177,49 @@ UCM puede almacenar la clave de firma de una CA en un módulo de seguridad de ha
 - Las claves privadas respaldadas por HSM **no se pueden exportar**. Las opciones PKCS#12, JKS y solo-clave se ocultan para las CAs HSM. Solo el certificado (PEM/DER/P7B) puede exportarse.
 - **No hay migración in situ** entre Local y HSM. Para «mover» una CA local existente a un HSM, cree una nueva CA en el HSM y vuelva a emitir los certificados.
 - Las claves existentes ofrecidas en *Usar clave existente* se filtran a claves asimétricas con capacidad de firma aún no vinculadas a otra CA.
+
+## Modo sin conexión
+
+Saca la clave de firma de una CA del uso en tiempo de ejecución sin eliminar la CA. El certificado, la cadena, la CRL y OCSP siguen funcionando — solo se bloquean las operaciones de firma (firmar CSR, emitir certificado, renovar CA).
+
+Esta es la forma estándar de proteger una CA raíz entre ceremonias poco frecuentes, manteniendo en línea su ancla de confianza y su infraestructura de revocación.
+
+### Dos modos
+
+**Protegida con contraseña** — la clave privada permanece en la base de datos UCM, envuelta (PKCS#8) bajo una contraseña que usted elige. Para volver a poner la CA en línea, haga clic en **Restaurar** y vuelva a introducir la contraseña. Rápido y conveniente; la seguridad depende de la fuerza de la contraseña y de que UCM no esté comprometido.
+
+**Exportada a archivo** — la clave privada se exporta como un archivo PEM cifrado con contraseña que se descarga una vez. Luego la clave se **elimina de la base de datos**. Para volver a poner la CA en línea, haga clic en **Restaurar**, suba el archivo e introduzca la contraseña. Es la opción más fuerte (auténtico air-gap) pero usted es plenamente responsable del archivo: si lo pierde, la clave es irrecuperable.
+
+### Reglas de contraseña
+La contraseña sigue la política de complejidad estándar de UCM: longitud mínima, mezcla de clases de caracteres, sin secuencias triviales. Las mismas reglas que para las contraseñas de usuario.
+
+### Paso a paso — Poner sin conexión
+1. Abra el panel de detalles de la CA
+2. Haga clic en **Poner sin conexión**
+3. Lea la explicación, haga clic en **Continuar**
+4. Elija un modo (*Protegida con contraseña* o *Exportada a archivo*)
+5. Introduzca la contraseña dos veces
+6. Confirme. Para *Exportada a archivo*, la clave cifrada se descarga inmediatamente — guárdela de forma segura.
+
+### Paso a paso — Restaurar
+1. Abra el panel de detalles de la CA sin conexión
+2. Haga clic en **Restaurar**
+3. Introduzca la contraseña
+4. Para *Exportada a archivo*: seleccione además el archivo de clave previamente descargado
+5. Confirme. Las operaciones de firma se reanudan inmediatamente.
+
+### Efecto en las operaciones
+| Operación | En línea | Sin conexión |
+|---|---|---|
+| Emitir certificado | Permitido | **Bloqueado** |
+| Firmar CSR | Permitido | **Bloqueado** |
+| Renovar CA | Permitido | **Bloqueado** |
+| Renovar certificado emitido | Permitido | **Bloqueado** |
+| Servir CRL / OCSP | Permitido | Permitido (firma en caché) |
+| Exportar certificado / cadena | Permitido | Permitido |
+| Eliminar CA | Permitido | Permitido |
+
+> ⚠ Las contraseñas del modo sin conexión **no son recuperables**. Guárdelas en su gestor de contraseñas / vault antes de confirmar. Contraseña perdida = CA inutilizable = reemisión completa de la jerarquía subordinada.
 `
   }
 }

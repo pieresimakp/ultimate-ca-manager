@@ -9,9 +9,9 @@
 
 **Ultimate Certificate Manager (UCM)** is a web-based Certificate Authority management platform with PKI protocol support (ACME, SCEP, EST, OCSP, CRL/CDP), Microsoft ADCS integration, multi-factor authentication, and certificate lifecycle management.
 
-> 🚀 **UCM is a young and actively developed project.** Feedback, bug reports, and feature requests are very welcome! Feel free to [open an issue](https://github.com/NeySlim/ultimate-ca-manager/issues) — every report helps make UCM better.
+> **UCM is a young and actively developed project.** Feedback, bug reports, and feature requests are very welcome! Feel free to [open an issue](https://github.com/NeySlim/ultimate-ca-manager/issues) — every report helps make UCM better.
 
-> ✨ **Latest release — v2.152** (2026-05-08): security and RFC-compliance hardening pass across all PKI protocols (OCSP, CRL, ACME, EST, SCEP, TSA) and resource APIs (CAs, certs, CSRs, templates, RBAC, HSM, MSCA, SSO, webhooks, discovery, audit, reports, SSH, trust store). Smoke-tested on SQLite and PostgreSQL across Debian, RHEL/Fedora, and Docker. See the [v2.152 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md).
+> **Latest release — v2.156** (2026-05-12): per-webhook custom authentication ([#116](https://github.com/NeySlim/ultimate-ca-manager/issues/116)) with five auth types (`none`, `bearer`, `basic`, `api_key`, `custom`), encrypted tokens at rest, and a live request-preview pane in the webhook form. See the [v2.156 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md).
 
 ![Dashboard](docs/screenshots/dashboard-dark.png)
 

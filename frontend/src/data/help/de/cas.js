@@ -33,15 +33,29 @@ export default {
           { label: 'Voraussetzung', text: 'Zuerst einen HSM-Anbieter in der HSM-Verwaltung konfigurieren und verbinden' },
         ]
       },
+      {
+        title: 'Offline-Modus',
+        items: [
+          { label: 'Zweck', text: 'Privaten Schlüssel einer CA (typischerweise einer Root) vor Runtime-Nutzung schützen, während Zertifikat, Kette, CRL und OCSP verfügbar bleiben' },
+          { label: 'Passwortgeschützt', text: 'Schlüssel wird mit einem benutzerdefinierten Passwort (PKCS#8) verschlüsselt und bleibt in der Datenbank. Wiederherstellung durch Passworteingabe.' },
+          { label: 'Datei-exportiert', text: 'Schlüssel wird als passwortgeschützte PEM-Datei einmalig heruntergeladen und aus der Datenbank entfernt. Wiederherstellung durch erneutes Hochladen mit Passwort.' },
+          { label: 'Passwort-Richtlinie', text: 'Das Passwort folgt der UCM-Komplexitätsrichtlinie (Länge und Zeichenklassen). Bei Verlust ist der Schlüssel unwiederbringlich.' },
+          { label: 'Auswirkung auf Signaturen', text: 'CSR-Signierung, Zertifikatausstellung und CA-Erneuerung sind offline blockiert. CRL und OCSP funktionieren weiter aus zwischengespeicherten Signaturen.' },
+          { label: 'Sub-CAs', text: 'Root- und Intermediate-CAs können unabhängig offline genommen werden' },
+        ]
+      },
     ],
     tips: [
       'CAs mit einem Schlüsselsymbol (🔑) haben einen privaten Schlüssel und können Zertifikate signieren',
       'Verwenden Sie Intermediate-CAs für die tägliche Signierung, halten Sie die Root-CA wenn möglich offline',
       'PKCS#12-Export enthält die vollständige Kette und ist ideal für Sicherungen',
+      'Nehmen Sie die Root-CA offline, sobald Ihre Intermediates betriebsbereit sind',
+      'Verwenden Sie „Datei-exportiert" für stärkste Air-Gap-Isolation; „Passwortgeschützt" für schnelle In-Place-Wiederherstellung',
     ],
     warnings: [
       'Das Löschen einer CA widerruft NICHT die von ihr ausgestellten Zertifikate — widerrufen Sie diese zuerst',
       'Private Schlüssel werden verschlüsselt gespeichert; der Verlust der Datenbank bedeutet den Verlust der Schlüssel',
+      'Offline-Modus-Passwörter sind NICHT wiederherstellbar — bewahren Sie sie vor der Bestätigung in Ihrem Passwortmanager / Vault auf',
     ],
   },
   helpGuides: {
@@ -163,6 +177,49 @@ UCM kann den Signaturschlüssel einer CA auf einem externen Hardware-Sicherheits
 - HSM-gesicherte private Schlüssel **können nicht exportiert werden**. PKCS#12-, JKS- und Nur-Schlüssel-Exportoptionen werden für HSM-CAs ausgeblendet. Nur das Zertifikat (PEM/DER/P7B) kann exportiert werden.
 - Es gibt **keine In-Place-Migration** zwischen Lokal und HSM. Um eine bestehende lokale CA auf ein HSM zu „verschieben", erstellen Sie eine neue CA auf dem HSM und stellen Sie Zertifikate neu aus.
 - Die in *Vorhandenen Schlüssel verwenden* angebotenen Schlüssel sind auf signaturfähige asymmetrische Schlüssel beschränkt, die noch keiner anderen CA zugeordnet sind.
+
+## Offline-Modus
+
+Nehmen Sie den Signierschlüssel einer CA aus der Laufzeitnutzung, ohne die CA zu löschen. Zertifikat, Kette, CRL und OCSP funktionieren weiter — nur Signieroperationen (CSR signieren, Zertifikat ausstellen, CA erneuern) sind blockiert.
+
+Dies ist der Standardweg, eine Root-CA zwischen seltenen Zeremonien zu schützen und gleichzeitig ihren Trust-Anchor und ihre Widerrufsinfrastruktur online zu halten.
+
+### Zwei Modi
+
+**Passwortgeschützt** — der private Schlüssel bleibt in der UCM-Datenbank, mit einem von Ihnen gewählten Passwort gewrappt (PKCS#8). Klicken Sie zum Reaktivieren auf **Wiederherstellen** und geben Sie das Passwort erneut ein. Schnell und bequem; die Sicherheit hängt von der Passwortstärke und davon ab, dass UCM nicht kompromittiert ist.
+
+**Datei-exportiert** — der private Schlüssel wird als passwortverschlüsselte PEM-Datei einmalig heruntergeladen. Der Schlüssel wird dann **aus der Datenbank entfernt**. Klicken Sie zum Reaktivieren auf **Wiederherstellen**, laden Sie die Datei hoch und geben Sie das Passwort ein. Dies ist die stärkste Option (echtes Air-Gap), aber Sie sind voll für die Datei verantwortlich: bei Verlust ist der Schlüssel unwiederbringlich.
+
+### Passwort-Regeln
+Das Passwort folgt der Standard-UCM-Komplexitätsrichtlinie: Mindestlänge, Mischung der Zeichenklassen, keine trivialen Sequenzen. Dieselben Regeln wie für Benutzerpasswörter.
+
+### Schritt für Schritt — Offline nehmen
+1. CA-Detailansicht öffnen
+2. Auf **Offline nehmen** klicken
+3. Erklärung lesen, **Weiter** klicken
+4. Modus wählen (*Passwortgeschützt* oder *Datei-exportiert*)
+5. Passwort zweimal eingeben
+6. Bestätigen. Bei *Datei-exportiert* wird der verschlüsselte Schlüssel sofort heruntergeladen — sicher aufbewahren.
+
+### Schritt für Schritt — Wiederherstellen
+1. Detailansicht der offline CA öffnen
+2. Auf **Wiederherstellen** klicken
+3. Passwort eingeben
+4. Bei *Datei-exportiert*: zusätzlich die zuvor heruntergeladene Schlüsseldatei auswählen
+5. Bestätigen. Signieroperationen werden sofort wieder verfügbar.
+
+### Auswirkung auf Operationen
+| Operation | Online | Offline |
+|---|---|---|
+| Zertifikat ausstellen | Erlaubt | **Blockiert** |
+| CSR signieren | Erlaubt | **Blockiert** |
+| CA erneuern | Erlaubt | **Blockiert** |
+| Ausgestelltes Zertifikat erneuern | Erlaubt | **Blockiert** |
+| CRL / OCSP bereitstellen | Erlaubt | Erlaubt (zwischengespeicherte Signatur) |
+| Zertifikat / Kette exportieren | Erlaubt | Erlaubt |
+| CA löschen | Erlaubt | Erlaubt |
+
+> ⚠ Offline-Modus-Passwörter sind **nicht wiederherstellbar**. Bewahren Sie sie vor der Bestätigung in Ihrem Passwortmanager / Vault auf. Verlorenes Passwort = unbrauchbare CA = vollständige Neuausstellung der untergeordneten Hierarchie.
 `
   }
 }

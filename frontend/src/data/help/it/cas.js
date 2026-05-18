@@ -33,15 +33,29 @@ export default {
           { label: 'Prerequisito', text: 'Prima configura e collega un provider HSM in Gestione HSM' },
         ]
       },
+      {
+        title: 'Modalità offline',
+        items: [
+          { label: 'Scopo', text: "Proteggere la chiave privata di una CA (tipicamente una root) dall'uso a runtime mantenendo disponibili certificato, catena, CRL e OCSP" },
+          { label: 'Protetta da password', text: "La chiave è cifrata con una password fornita dall'utente (PKCS#8) e rimane nel database. Ripristino inserendo la password." },
+          { label: 'Esportata su file', text: 'La chiave è esportata come PEM cifrato scaricabile una volta e rimossa dal database. Ripristino caricando nuovamente il file con la password.' },
+          { label: 'Politica password', text: 'La password segue le regole di complessità UCM (lunghezza e classi di caratteri). Se persa, la chiave è irrecuperabile.' },
+          { label: 'Effetto sulla firma', text: "La firma di CSR, l'emissione di certificati e il rinnovo della CA sono bloccati offline. CRL e OCSP continuano a funzionare dalle firme in cache." },
+          { label: 'Sub-CA', text: 'Sia le CA root che intermedie possono essere portate offline indipendentemente' },
+        ]
+      },
     ],
     tips: [
       'Le CA con l\'icona della chiave (🔑) hanno una chiave privata e possono firmare certificati',
       'Usa CA intermedie per la firma quotidiana, mantieni la CA root offline quando possibile',
       'L\'esportazione PKCS#12 include la catena completa ed è ideale per il backup',
+      'Porta la CA root offline non appena le tue intermedie sono operative',
+      'Usa «Esportata su file» per il massimo isolamento air-gap; «Protetta da password» per un ripristino rapido in loco',
     ],
     warnings: [
       'L\'eliminazione di una CA NON revoca i certificati che ha emesso — revocali prima',
       'Le chiavi private sono memorizzate crittografate; la perdita del database significa la perdita delle chiavi',
+      'Le password della modalità offline NON sono recuperabili — conservale nel tuo password manager / vault prima di confermare',
     ],
   },
   helpGuides: {
@@ -163,6 +177,49 @@ UCM può memorizzare la chiave di firma di una CA su un modulo di sicurezza hard
 - Le chiavi private supportate da HSM **non possono essere esportate**. Le opzioni di esportazione PKCS#12, JKS e solo-chiave sono nascoste per le CA HSM. Può essere esportato solo il certificato (PEM/DER/P7B).
 - **Non esiste migrazione in loco** tra Locale e HSM. Per «spostare» una CA locale esistente su un HSM, crea una nuova CA sull'HSM e riemetti i certificati.
 - Le chiavi esistenti offerte in *Usa chiave esistente* sono filtrate a chiavi asimmetriche di firma non ancora collegate ad altre CA.
+
+## Modalità offline
+
+Togli la chiave di firma di una CA dall'uso a runtime senza eliminare la CA. Certificato, catena, CRL e OCSP continuano a funzionare — solo le operazioni di firma (firma CSR, emissione certificato, rinnovo CA) sono bloccate.
+
+Questo è il modo standard per proteggere una CA root tra cerimonie rare, mantenendo online la sua trust anchor e l'infrastruttura di revoca.
+
+### Due modalità
+
+**Protetta da password** — la chiave privata rimane nel database UCM, wrappata (PKCS#8) con una password che scegli tu. Per riportare la CA online, clicca su **Ripristina** e reinserisci la password. Veloce e comodo; la sicurezza dipende dalla forza della password e dal fatto che UCM non sia compromesso.
+
+**Esportata su file** — la chiave privata viene esportata come file PEM cifrato con password scaricato una volta. La chiave viene poi **rimossa dal database**. Per riportare la CA online, clicca su **Ripristina**, carica il file e inserisci la password. È l'opzione più forte (vero air-gap) ma sei pienamente responsabile del file: se lo perdi, la chiave è irrecuperabile.
+
+### Regole password
+La password segue la politica di complessità standard UCM: lunghezza minima, mix di classi di caratteri, niente sequenze banali. Le stesse regole delle password utente.
+
+### Passo per passo — Porta offline
+1. Apri il pannello di dettaglio della CA
+2. Clicca su **Porta offline**
+3. Leggi la spiegazione, clicca su **Continua**
+4. Scegli una modalità (*Protetta da password* o *Esportata su file*)
+5. Inserisci la password due volte
+6. Conferma. Per *Esportata su file*, la chiave cifrata viene scaricata immediatamente — conservala in sicurezza.
+
+### Passo per passo — Ripristina
+1. Apri il pannello di dettaglio della CA offline
+2. Clicca su **Ripristina**
+3. Inserisci la password
+4. Per *Esportata su file*: seleziona anche il file di chiave scaricato in precedenza
+5. Conferma. Le operazioni di firma riprendono immediatamente.
+
+### Effetto sulle operazioni
+| Operazione | Online | Offline |
+|---|---|---|
+| Emetti certificato | Consentito | **Bloccato** |
+| Firma CSR | Consentito | **Bloccato** |
+| Rinnova CA | Consentito | **Bloccato** |
+| Rinnova certificato emesso | Consentito | **Bloccato** |
+| Servire CRL / OCSP | Consentito | Consentito (firma in cache) |
+| Esportare certificato / catena | Consentito | Consentito |
+| Elimina CA | Consentito | Consentito |
+
+> ⚠ Le password della modalità offline **non sono recuperabili**. Conservale nel tuo password manager / vault prima di confermare. Password persa = CA inutilizzabile = riemissione completa della gerarchia subordinata.
 `
   }
 }

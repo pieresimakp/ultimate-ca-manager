@@ -562,7 +562,7 @@
     "deleteCAButton": "Supprimer l'AC",
     "deleteFailed": "Échec de la suppression de l'AC",
     "exportFailed": "Échec de l'exportation de l'AC",
-    "passwordTooShort": "Le mot de passe doit contenir au moins 4 caractères",
+    "passwordTooShort": "Le mot de passe doit contenir au moins 12 caractères",
     "exportedAs": "AC exportée en {{format}}",
     "createFailed": "Échec de la création de l'AC",
     "unnamedCA": "AC sans nom",
@@ -574,6 +574,15 @@
     "certificateCount": "{{count}} certificats",
     "daysLeft": "{{count}} jours restants",
     "daysLeft_one": "{{count}} jour restant",
+    "offline": "Hors ligne",
+    "offlinePassword": "Mot de passe",
+    "offlineMode": "Mode hors ligne",
+    "offlinePasswordProtected": "Protégé par mot de passe",
+    "offlineFileExported": "Fichier de clé exporté",
+    "takeOffline": "Mettre hors ligne",
+    "restore": "Restaurer la CA",
+    "offlineFailed": "Échec de la mise hors ligne de la CA",
+    "restoreFailed": "Échec de la restauration de la CA",
     "descriptionPlaceholder": "Description optionnelle pour cette AC",
     "advancedConstraints": "Contraintes avancées (RFC 5280)",
     "pathLength": "Contrainte de longueur de chemin",
@@ -609,7 +618,32 @@
       "hsmBacked": "Adossé HSM",
       "hsmKey": "Clé HSM",
       "exportBlockedHsm": "La clé adossée HSM ne peut pas être exportée"
-    }
+    },
+    "offlineExplain": {
+      "title": "Que fait la mise hors ligne d'une AC ?",
+      "body": "Une AC hors ligne ne peut plus signer de nouveaux certificats ni de CRL jusqu'à sa restauration. À utiliser pour les AC racines qui ne sont remises en ligne que pour des cérémonies.",
+      "bullet1": "Toute signature de certificat est bloquée",
+      "bullet2": "La génération de CRL est bloquée",
+      "bullet3": "Les certificats existants restent valides"
+    },
+    "offlineModeDesc": {
+      "passwordProtected": "Chiffre la clé privée dans la base de données avec votre mot de passe. L'AC reste dans UCM et se restaure en saisissant le mot de passe.",
+      "fileExported": "Exporte la clé privée chiffrée sous forme de fichier et la retire de la base. UCM ne conserve plus la clé — conservez le fichier en lieu sûr."
+    },
+    "offlineFileExportedWarning": "Après le téléchargement, la clé privée sera définitivement supprimée de cette instance UCM. Vous devez conserver le fichier téléchargé en lieu sûr — c'est la seule copie.",
+    "offlinePasswordHint": "Minimum 12 caractères. Ce mot de passe chiffre la clé privée.",
+    "offlinePasswordConfirm": "Confirmez le mot de passe",
+    "passwordMismatch": "Les mots de passe ne correspondent pas",
+    "takeOfflineAndDownload": "Mettre hors ligne et télécharger la clé",
+    "restoreExplain": {
+      "title": "Restaurer l'AC",
+      "passwordProtected": "Cette AC a été mise hors ligne avec protection par mot de passe. Saisissez le mot de passe pour déchiffrer la clé privée et restaurer la signature.",
+      "fileExported": "Cette AC a été mise hors ligne avec export du fichier de clé. Téléversez le fichier de clé chiffré et saisissez son mot de passe pour restaurer la signature."
+    },
+    "offlineKeyFile": "Fichier de clé chiffré",
+    "offlineKeyFilePick": "Choisir le fichier de clé",
+    "offlineKeyFileTooLarge": "Fichier de clé trop volumineux (max 256 Ko)",
+    "restorePasswordHint": "Le mot de passe utilisé lors de la mise hors ligne de l'AC."
   },
   "certificates": {
     "createCertificate": "Créer un certificat",
@@ -1150,7 +1184,8 @@
     "scanNetwork": "Scanner le réseau",
     "generateReport": "Générer un rapport",
     "healthStatus": "État de santé",
-    "remove": "Supprimer"
+    "remove": "Supprimer",
+    "continue": "Continuer"
   },
   "compare": {
     "title": "Comparer les certificats",
@@ -2005,7 +2040,8 @@
       "webhooks": "Webhooks",
       "about": "À propos",
       "microsoftCA": "Microsoft CA",
-      "ct": "CT"
+      "ct": "CT",
+      "autoRenewal": "Renouvellement auto"
     },
     "systemNameHelper": "Nom d'affichage du système UCM",
     "baseUrl": "URL de base",
@@ -2085,6 +2121,19 @@
     "encryptionDesc": "Chiffre toutes les clés privées stockées en base de données avec AES-256. Les clés sont protégées par une clé maître stockée dans /etc/ucm/master.key.",
     "enableEncryption": "Activer le chiffrement",
     "disableEncryption": "Désactiver le chiffrement",
+    "backupMasterKey": "Sauvegarder la clé maître",
+    "masterKeyBackupTitle": "Sauvegardez votre clé maître",
+    "masterKeyBackupCritical": "Critique : sauvegardez cette clé MAINTENANT",
+    "masterKeyBackupDesc": "Sans ce fichier, toutes les clés privées chiffrées (AC, certificats, comptes ACME, AC SSH, secrets de webhook) deviennent irrécupérables. La perdre signifie perdre votre PKI.",
+    "masterKeyBackupInstructions": "Téléchargez la clé maître et conservez-la dans au moins deux endroits sûrs, par exemple :",
+    "masterKeyBackupTip1": "Un gestionnaire de mots de passe (1Password, Bitwarden, KeePass)",
+    "masterKeyBackupTip2": "Une clé USB chiffrée hors ligne conservée dans un coffre",
+    "masterKeyBackupTip3": "Le système de gestion de secrets de votre organisation (Vault, AWS Secrets Manager)",
+    "masterKeyDownloadNow": "Télécharger la clé maître",
+    "masterKeyDownloadAgain": "Télécharger à nouveau",
+    "masterKeyBackupConfirm": "J'ai stocké la clé maître en sécurité et je comprends que la perdre rend toutes les données chiffrées irrécupérables.",
+    "masterKeyDownloaded": "Clé maître téléchargée",
+    "masterKeyDownloadFailed": "Échec du téléchargement de la clé maître",
     "encryptionEnabled": "Chiffrement activé. Toutes les clés privées sont maintenant chiffrées.",
     "encryptionDisabled": "Chiffrement désactivé. Les clés privées sont stockées en clair.",
     "encryptionEnableFailed": "Échec de l'activation du chiffrement",
@@ -2209,7 +2258,8 @@
       "notifications": "Notifications",
       "interface": "Interface",
       "about": "Info",
-      "integrations": "Intégrations"
+      "integrations": "Intégrations",
+      "automation": "Automatisation"
     },
     "remoteSyslog": "Syslog distant",
     "remoteSyslogDesc": "Transférer les événements d'audit vers un serveur syslog distant pour la centralisation des logs et l'intégration SIEM.",
@@ -2344,7 +2394,29 @@
     "smtpOauthSetup_microsoft_title": "Outlook.com (personnel) — configuration Azure unique",
     "smtpOauthSetup_microsoft_steps": "Les applications de messagerie mobile (iOS Mail, Thunderbird, etc.) utilisent des IDs clients publiés par Microsoft qu'ils ne peuvent pas partager. Comme UCM est auto-hébergé, vous en créez un — c'est gratuit et prend 5 minutes :\n\n1. Connectez-vous à Azure Portal avec n'importe quel compte Microsoft (gratuit, aucun abonnement nécessaire).\n2. App registrations → New registration → choisissez 'Personal Microsoft accounts only'.\n3. Ajoutez l'URI de redirection indiqué ci-dessous (plateforme Web).\n4. Certificates & secrets → New client secret → copiez la valeur.\n5. API permissions → ajoutez 'SMTP.Send' et 'offline_access' (Microsoft Graph, délégué).\n6. Copiez l'Application (client) ID et la valeur du secret dans les champs ci-dessous.",
     "smtpOauthSetup_microsoft365_title": "Comment configurer Microsoft 365 (travail / école)",
-    "smtpOauthSetup_microsoft365_steps": "1. Connectez-vous au portail Azure en tant qu'administrateur de locataire.\n2. App registrations → New registration → choisissez « Accounts in this organizational directory only » (ou multitenant).\n3. Ajoutez l'URI de redirection affichée ci-dessous (plateforme Web).\n4. Certificates & secrets → New client secret → copiez la Value.\n5. API permissions → ajoutez 'SMTP.Send' et 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copiez l'Application (client) ID, la secret Value et votre Tenant ID (Directory ID) dans les champs ci-dessous."
+    "smtpOauthSetup_microsoft365_steps": "1. Connectez-vous au portail Azure en tant qu'administrateur de locataire.\n2. App registrations → New registration → choisissez « Accounts in this organizational directory only » (ou multitenant).\n3. Ajoutez l'URI de redirection affichée ci-dessous (plateforme Web).\n4. Certificates & secrets → New client secret → copiez la Value.\n5. API permissions → ajoutez 'SMTP.Send' et 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copiez l'Application (client) ID, la secret Value et votre Tenant ID (Directory ID) dans les champs ci-dessous.",
+    "autoRenewal": "Renouvellement automatique",
+    "autoRenewalDescription": "Renouvelle automatiquement les certificats avant expiration",
+    "autoRenewalEnabled": "Activer le renouvellement automatique",
+    "autoRenewalEnabledDesc": "Le planificateur s'exécute toutes les 12 heures et renouvelle les certificats éligibles",
+    "autoRenewalDays": "Renouveler si expiration sous (jours)",
+    "autoRenewalDaysHelp": "Les certificats expirant dans ce délai seront renouvelés automatiquement",
+    "autoRenewalSources": "Sources éligibles",
+    "autoRenewalSourcesHelp": "Seuls les certificats émis via les protocoles sélectionnés seront renouvelés",
+    "autoRenewalSource_scep": "SCEP",
+    "autoRenewalSource_acme": "ACME",
+    "autoRenewalSource_est": "EST",
+    "autoRenewalNotifications": "Notifications",
+    "autoRenewalNotifyOnRenewal": "Me notifier sur renouvellement réussi",
+    "autoRenewalNotifyOnFailure": "Me notifier sur échec de renouvellement",
+    "autoRenewalNotifyEmails": "Destinataires des notifications",
+    "autoRenewalNotifyEmailsHelp": "Adresses recevant les rapports de renouvellement automatique",
+    "autoRenewalRunNow": "Exécuter maintenant",
+    "autoRenewalRunDisabled": "Activez le renouvellement automatique d'abord",
+    "autoRenewalRunSuccess": "Renouvellement terminé : {{renewed}} renouvelés, {{failed}} échoués",
+    "autoRenewalRunFailed": "Échec du renouvellement automatique",
+    "autoRenewalSettingsUpdated": "Paramètres de renouvellement automatique mis à jour",
+    "autoRenewalSettingsFailed": "Échec de la mise à jour des paramètres de renouvellement"
   },
   "sso": {
     "subtitle": "Configurez des fournisseurs LDAP, OAuth2 ou SAML pour une authentification centralisée",
@@ -2812,7 +2884,53 @@
     "toggleSuccess": "Webhook {{action}}",
     "toggleFailed": "Échec du basculement du webhook",
     "testSuccess": "Événement de test envoyé avec succès",
-    "testFailed": "Échec de l'envoi de l'événement de test"
+    "testFailed": "Échec de l'envoi de l'événement de test",
+    "auth": {
+      "title": "Authentication",
+      "type": {
+        "label": "Auth Type",
+        "options": {
+          "none": "None",
+          "bearer": "Bearer Token",
+          "basic": "Basic Auth",
+          "api_key": "API Key (custom header)",
+          "custom": "Custom Header"
+        }
+      },
+      "token": {
+        "label": "Token",
+        "placeholder": "Enter token value",
+        "set": "Token set — leave blank to keep, or clear to remove",
+        "clear": "Clear token",
+        "show": "Show token",
+        "hide": "Hide token"
+      },
+      "username": {
+        "label": "Username"
+      },
+      "headerName": {
+        "label": "Header Name",
+        "placeholder": "X-API-Key"
+      },
+      "custom": {
+        "helper": "Include the auth scheme in the value, e.g. `auth-key YOUR_TOKEN`"
+      },
+      "apiKey": {
+        "authorizationWarning": "\"Authorization\" is reserved for Bearer/Basic. Use the Custom Header type instead to set Authorization directly."
+      },
+      "preview": {
+        "title": "Outgoing header preview",
+        "reveal": "Reveal",
+        "hide": "Hide"
+      },
+      "errors": {
+        "tokenRequired": "Token is required for this auth type",
+        "usernameRequired": "Username is required for Basic Auth",
+        "headerNameRequired": "Header name is required",
+        "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
+        "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    }
   },
   "safeMode": {
     "title": "Mode sans échec",
@@ -3216,7 +3334,9 @@
         "key": "Clé générée",
         "generic": "Créé avec succès",
         "sshCa": "SSH CA created successfully",
-        "sshCertificate": "SSH certificate issued successfully"
+        "sshCertificate": "SSH certificate issued successfully",
+        "caOffline": "Autorité de certification hors ligne",
+        "caRestored": "Autorité de certification restaurée à l'état en ligne"
       },
       "update": {
         "certificate": "Certificat mis à jour avec succès",

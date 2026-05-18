@@ -13,7 +13,7 @@ import {
   Plus, PencilSimple, TestTube, Lightning, Globe, Shield, CheckCircle, XCircle, MagnifyingGlass,
   Bell, Copy, Power, ArrowClockwise, LockKey, Warning, User, GithubLogo,
   Plugs, UsersThree, UserPlus, TreeStructure, CaretDown, Play,
-  WindowsLogo
+  WindowsLogo, ClockClockwise
 } from '@phosphor-icons/react'
 import {
   ResponsiveLayout,
@@ -57,6 +57,7 @@ import UpdatesSection from './settings/UpdatesSection'
 import WebhooksSection from './settings/WebhooksSection'
 import CTSection from './settings/CTSection'
 import MicrosoftCASection from './settings/MicrosoftCASection'
+import AutoRenewalSection from './settings/AutoRenewalSection'
 import { setAppTimezone } from '../stores/timezoneStore'
 import { setDateFormat, setShowTime } from '../stores/dateFormatStore'
 
@@ -74,6 +75,7 @@ const BASE_SETTINGS_CATEGORIES = [
   { id: 'updates', labelKey: 'settings.tabs.updates', icon: Rocket, color: 'icon-bg-violet' },
   { id: 'webhooks', labelKey: 'settings.tabs.webhooks', icon: Bell, color: 'icon-bg-rose' },
   { id: 'ct', labelKey: 'settings.tabs.ct', icon: Eye, color: 'icon-bg-cyan' },
+  { id: 'autoRenewal', labelKey: 'settings.tabs.autoRenewal', icon: ClockClockwise, color: 'icon-bg-emerald' },
   { id: 'microsoftCA', labelKey: 'settings.tabs.microsoftCA', icon: WindowsLogo, color: 'icon-bg-indigo' },
   { id: 'about', labelKey: 'settings.tabs.about', icon: Info, color: 'icon-bg-sky' },
 ]
@@ -173,6 +175,15 @@ export default function SettingsPage() {
   const [encryptionConfirmText, setEncryptionConfirmText] = useState('')
   const [encryptionChecks, setEncryptionChecks] = useState({ backup: false, keyFile: false, lostKeys: false })
 
+  // Master-key backup modal — shown immediately after enable-encryption succeeds.
+  // Holds the freshly-generated key so the user can download it BEFORE leaving
+  // the page. Without this backup, losing /etc/ucm/master.key = losing every
+  // encrypted private key in the DB.
+  const [showBackupKeyModal, setShowBackupKeyModal] = useState(false)
+  const [backupKeyMaterial, setBackupKeyMaterial] = useState(null)
+  const [backupKeyDownloaded, setBackupKeyDownloaded] = useState(false)
+  const [backupKeyConfirmed, setBackupKeyConfirmed] = useState(false)
+
   // Anomaly detection state
   const [anomalies, setAnomalies] = useState([])
   const [anomaliesLoading, setAnomaliesLoading] = useState(false)
@@ -193,6 +204,19 @@ export default function SettingsPage() {
   const [ctSaving, setCtSaving] = useState(false)
   const [ctNewLogUrl, setCtNewLogUrl] = useState('')
 
+  // Auto-renewal state
+  const [arSettings, setArSettings] = useState({
+    enabled: false,
+    days_before_expiry: 30,
+    renewal_sources: ['scep', 'acme', 'est'],
+    notify_on_renewal: true,
+    notify_on_failure: true,
+    notify_emails: [],
+  })
+  const [arLoading, setArLoading] = useState(false)
+  const [arSaving, setArSaving] = useState(false)
+  const [arRunning, setArRunning] = useState(false)
+
   // All settings categories (SSO now integrated directly)
   const SETTINGS_CATEGORIES = BASE_SETTINGS_CATEGORIES
 
@@ -211,6 +235,7 @@ export default function SettingsPage() {
     loadSyslogConfig()
     loadMtlsSettings()
     loadCtSettings()
+    loadAutoRenewalSettings()
     systemService.getServiceStatus().then(r => setIsDocker(r.data?.is_docker || false)).catch(() => {})
   }, [])
 
@@ -573,16 +598,65 @@ export default function SettingsPage() {
   const handleEnableEncryption = async () => {
     setEncryptionLoading(true)
     try {
-      await settingsService.enableEncryption()
+      const response = await settingsService.enableEncryption()
       showSuccess(t('settings.encryptionEnabled'))
       setShowEnableEncryptionModal(false)
       setEncryptionConfirmText('')
       setEncryptionChecks({ backup: false, keyFile: false, lostKeys: false })
       await loadEncryptionStatus()
+
+      // CRITICAL: prompt the operator to back up the master key right now.
+      // The plaintext key is only available in this response; once the user
+      // leaves this page we lose the chance to surface it cleanly.
+      const masterKey = response?.data?.master_key
+      if (masterKey) {
+        setBackupKeyMaterial(masterKey)
+        setBackupKeyDownloaded(false)
+        setBackupKeyConfirmed(false)
+        setShowBackupKeyModal(true)
+      }
     } catch (error) {
       showError(error.message || t('settings.encryptionEnableFailed'))
     } finally {
       setEncryptionLoading(false)
+    }
+  }
+
+  const handleDownloadMasterKey = () => {
+    if (!backupKeyMaterial) return
+    try {
+      const blob = new Blob([backupKeyMaterial + '\n'], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'ucm-master.key'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setBackupKeyDownloaded(true)
+    } catch (e) {
+      showError(t('settings.masterKeyDownloadFailed'))
+    }
+  }
+
+  // Standalone backup (button in encryption status section, after enable).
+  // Fetches the key from the server (admin already has FS access) and
+  // triggers the same browser download as post-enable.
+  const handleDownloadExistingMasterKey = async () => {
+    try {
+      const blob = await settingsService.downloadMasterKey()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'ucm-master.key'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      showSuccess(t('settings.masterKeyDownloaded'))
+    } catch (e) {
+      showError(e.message || t('settings.masterKeyDownloadFailed'))
     }
   }
 
@@ -717,6 +791,50 @@ export default function SettingsPage() {
 
   const handleCtRemoveLogUrl = (index) => {
     setCtSettings(prev => ({ ...prev, log_urls: prev.log_urls.filter((_, i) => i !== index) }))
+  }
+
+  // Auto-renewal
+  const loadAutoRenewalSettings = async () => {
+    setArLoading(true)
+    try {
+      const response = await settingsService.getAutoRenewalSettings()
+      if (response.data) setArSettings(response.data)
+    } catch {
+      // keep defaults silently
+    } finally {
+      setArLoading(false)
+    }
+  }
+
+  const handleArSave = async () => {
+    setArSaving(true)
+    try {
+      const response = await settingsService.updateAutoRenewalSettings(arSettings)
+      if (response.data) setArSettings(response.data)
+      showSuccess(t('settings.autoRenewalSettingsUpdated'))
+    } catch (error) {
+      showError(error.message || t('settings.autoRenewalSettingsFailed'))
+    } finally {
+      setArSaving(false)
+    }
+  }
+
+  const handleArRunNow = async () => {
+    setArRunning(true)
+    try {
+      const response = await settingsService.runAutoRenewalNow()
+      const stats = response.data || {}
+      showSuccess(
+        t('settings.autoRenewalRunSuccess', {
+          renewed: stats.renewed || 0,
+          failed: stats.failed || 0,
+        })
+      )
+    } catch (error) {
+      showError(error.message || t('settings.autoRenewalRunFailed'))
+    } finally {
+      setArRunning(false)
+    }
   }
 
   const handleSave = async (section) => {
@@ -1130,6 +1248,7 @@ export default function SettingsPage() {
             encryptionStatus={encryptionStatus}
             setShowEnableEncryptionModal={setShowEnableEncryptionModal}
             setShowDisableEncryptionModal={setShowDisableEncryptionModal}
+            handleDownloadExistingMasterKey={handleDownloadExistingMasterKey}
             anomalies={anomalies}
             anomaliesLoading={anomaliesLoading}
             loadAnomalies={loadAnomalies}
@@ -1239,6 +1358,18 @@ export default function SettingsPage() {
             handleCtRemoveLogUrl={handleCtRemoveLogUrl}
           />
         )
+      case 'autoRenewal':
+        return (
+          <AutoRenewalSection
+            arSettings={arSettings}
+            setArSettings={setArSettings}
+            arLoading={arLoading}
+            arSaving={arSaving}
+            arRunning={arRunning}
+            handleArSave={handleArSave}
+            handleArRunNow={handleArRunNow}
+          />
+        )
       case 'microsoftCA':
         return (
           <MicrosoftCASection
@@ -1330,6 +1461,7 @@ export default function SettingsPage() {
           { labelKey: 'settings.groups.system', tabs: ['general', 'updates', 'database', 'https', 'backup'], color: 'icon-bg-blue' },
           { labelKey: 'settings.groups.security', tabs: ['security', 'sso', 'ct'], color: 'icon-bg-amber' },
           { labelKey: 'settings.groups.notifications', tabs: ['email', 'webhooks'], color: 'icon-bg-teal' },
+          { labelKey: 'settings.groups.automation', tabs: ['autoRenewal'], color: 'icon-bg-emerald' },
           { labelKey: 'settings.groups.integrations', tabs: ['microsoftCA'], color: 'icon-bg-indigo' },
           { labelKey: 'settings.groups.interface', tabs: ['appearance', 'audit'], color: 'icon-bg-violet' },
           { labelKey: 'settings.groups.about', tabs: ['about'], color: 'icon-bg-sky' },
@@ -1592,6 +1724,89 @@ export default function SettingsPage() {
         variant="danger"
         loading={encryptionLoading}
       />
+
+      {/* Backup Master Key Modal — shown immediately after enabling encryption.
+          Operator MUST download the key + confirm storage before closing. */}
+      <Modal
+        open={showBackupKeyModal}
+        onClose={() => {
+          // Disallow dismiss without explicit confirmation. Closing without
+          // backup is the #1 cause of "I lost my master.key" support tickets.
+          if (backupKeyConfirmed) {
+            setShowBackupKeyModal(false)
+            setBackupKeyMaterial(null)
+            setBackupKeyDownloaded(false)
+            setBackupKeyConfirmed(false)
+          }
+        }}
+        title={t('settings.masterKeyBackupTitle')}
+        size="md"
+        showClose={backupKeyConfirmed}
+      >
+        <div className="p-4 space-y-4">
+          <div className="p-3 rounded-lg bg-status-danger-op10 border border-status-danger/30">
+            <div className="flex items-start gap-2">
+              <WarningCircle size={20} className="text-status-danger flex-shrink-0 mt-0.5" weight="fill" />
+              <div className="text-sm text-text-primary">
+                <p className="font-semibold mb-1">{t('settings.masterKeyBackupCritical')}</p>
+                <p className="text-text-secondary">{t('settings.masterKeyBackupDesc')}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-sm text-text-secondary space-y-2">
+            <p>{t('settings.masterKeyBackupInstructions')}</p>
+            <ul className="list-disc list-inside text-xs space-y-1 pl-2">
+              <li>{t('settings.masterKeyBackupTip1')}</li>
+              <li>{t('settings.masterKeyBackupTip2')}</li>
+              <li>{t('settings.masterKeyBackupTip3')}</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant={backupKeyDownloaded ? 'outline' : 'primary'}
+              onClick={handleDownloadMasterKey}
+            >
+              <Download size={16} />
+              {backupKeyDownloaded
+                ? t('settings.masterKeyDownloadAgain')
+                : t('settings.masterKeyDownloadNow')}
+            </Button>
+          </div>
+
+          <label className={`flex items-start gap-2 cursor-pointer p-3 rounded-lg border ${backupKeyDownloaded ? 'border-border bg-bg-tertiary' : 'border-border/50 bg-bg-tertiary/40 opacity-60'}`}>
+            <input
+              type="checkbox"
+              checked={backupKeyConfirmed}
+              onChange={(e) => setBackupKeyConfirmed(e.target.checked)}
+              disabled={!backupKeyDownloaded}
+              className="rounded border-border bg-bg-tertiary mt-0.5"
+            />
+            <span className="text-sm text-text-primary">
+              {t('settings.masterKeyBackupConfirm')}
+            </span>
+          </label>
+
+          <div className="flex justify-end pt-4 border-t border-border">
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!backupKeyConfirmed}
+              onClick={() => {
+                setShowBackupKeyModal(false)
+                setBackupKeyMaterial(null)
+                setBackupKeyDownloaded(false)
+                setBackupKeyConfirmed(false)
+              }}
+            >
+              <CheckCircle size={16} />
+              {t('common.done')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Smart Import Modal for HTTPS certificate */}
       <SmartImportModal

@@ -641,6 +641,211 @@ class TestIntermediateChain:
 
 
 # ============================================================
+# CA Offline
+# ============================================================
+
+class TestCAOffline:
+    """CA offline/restore endpoint tests — real password-based encryption."""
+
+    GOOD_PWD = 'OfflineP@ss2026!'
+    WEAK_PWD = 'short'
+
+    def test_take_ca_offline_password_protected(self, auth_client, create_ca):
+        ca = create_ca()
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+            'mode': 'password_protected',
+        })
+        assert r.status_code == 200, r.data
+        data = get_json(r)
+        assert data['data']['offline'] is True
+        assert data['data']['offline_mode'] == 'password_protected'
+        assert data['data']['offline_label'] == 'Offline'
+
+    def test_take_ca_offline_rejects_weak_password(self, auth_client, create_ca):
+        ca = create_ca()
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.WEAK_PWD,
+            'mode': 'password_protected',
+        })
+        assert r.status_code == 400
+        assert b'complexity' in r.data.lower() or b'characters' in r.data.lower()
+
+    def test_take_ca_offline_rejects_missing_password(self, auth_client, create_ca):
+        ca = create_ca()
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'mode': 'password_protected',
+        })
+        assert r.status_code == 400
+
+    def test_take_ca_offline_file_exported_returns_file_and_clears_db_key(
+        self, auth_client, create_ca
+    ):
+        from models import CA
+        ca = create_ca()
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+            'mode': 'file_exported',
+        })
+        assert r.status_code == 200
+        assert b'BEGIN ENCRYPTED PRIVATE KEY' in r.data
+        assert r.headers.get('Content-Disposition', '').startswith('attachment')
+        # Key removed from DB — verify via the API (single-row read)
+        info = auth_client.get(f'/api/v2/cas/{ca["id"]}')
+        info_data = get_json(info)['data']
+        assert info_data['offline'] is True
+        assert info_data['offline_mode'] == 'file_exported'
+        assert not info_data.get('prv')
+
+    def test_take_ca_offline_twice_rejected(self, auth_client, create_ca):
+        ca = create_ca()
+        auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+        })
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+        })
+        assert r.status_code == 409
+
+    def test_restore_ca_password_protected_round_trip(self, auth_client, create_ca):
+        ca = create_ca()
+        auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+        })
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/restore', json={
+            'password': self.GOOD_PWD,
+        })
+        assert r.status_code == 200, r.data
+        d = get_json(r)
+        assert d['data']['offline'] is False
+        assert d['data']['offline_mode'] is None
+
+    def test_restore_ca_wrong_password_rejected(self, auth_client, create_ca):
+        ca = create_ca()
+        auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+        })
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/restore', json={
+            'password': 'WrongP@ssword2026!',
+        })
+        assert r.status_code == 401
+
+    def test_restore_ca_without_password_rejected(self, auth_client, create_ca):
+        ca = create_ca()
+        auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+        })
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/restore', json={})
+        assert r.status_code == 400
+
+    def test_restore_ca_file_exported_round_trip(self, auth_client, create_ca):
+        ca = create_ca()
+        export = auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+            'mode': 'file_exported',
+        })
+        assert export.status_code == 200
+        encrypted_pem = export.data
+        # Restore via multipart
+        from io import BytesIO
+        r = auth_client.post(
+            f'/api/v2/cas/{ca["id"]}/restore',
+            data={
+                'password': self.GOOD_PWD,
+                'key_file': (BytesIO(encrypted_pem), 'ca-offline.key'),
+            },
+            content_type='multipart/form-data',
+        )
+        assert r.status_code == 200, r.data
+        assert get_json(r)['data']['offline'] is False
+
+    def test_restore_file_exported_wrong_password_rejected(self, auth_client, create_ca):
+        ca = create_ca()
+        export = auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+            'mode': 'file_exported',
+        })
+        from io import BytesIO
+        r = auth_client.post(
+            f'/api/v2/cas/{ca["id"]}/restore',
+            data={
+                'password': 'WrongP@ssword2026!',
+                'key_file': (BytesIO(export.data), 'ca-offline.key'),
+            },
+            content_type='multipart/form-data',
+        )
+        assert r.status_code == 401
+
+    def test_restore_file_exported_missing_file_rejected(self, auth_client, create_ca):
+        ca = create_ca()
+        auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+            'mode': 'file_exported',
+        })
+        r = auth_client.post(f'/api/v2/cas/{ca["id"]}/restore', json={
+            'password': self.GOOD_PWD,
+        })
+        # No file uploaded; backend reports either 400 (missing file) or 409
+        # (no in-DB key for password_protected fallback). Either is correct.
+        assert r.status_code in (400, 409)
+
+    def test_update_ca_cannot_mutate_offline_fields(self, auth_client, create_ca):
+        """Backdoor closed: PUT /cas/<id> ignores offline/offline_mode/offline_reason."""
+        ca = create_ca()
+        r = auth_client.patch(f'/api/v2/cas/{ca["id"]}', json={
+            'offline': True,
+            'offline_mode': 'password_protected',
+            'offline_reason': 'sneaky',
+        })
+        assert r.status_code == 200
+        d = get_json(r)
+        assert d['data']['offline'] is False
+        assert d['data']['offline_mode'] is None
+
+    def test_sign_csr_blocked_when_offline(self, auth_client, create_ca):
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.x509.oid import NameOID
+
+        ca = create_ca()
+        auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+        })
+
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        csr = (x509.CertificateSigningRequestBuilder()
+               .subject_name(x509.Name([
+                   x509.NameAttribute(NameOID.COMMON_NAME, 'test.example.com'),
+                   x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Test'),
+               ]))
+               .sign(private_key, hashes.SHA256()))
+        csr_pem = csr.public_bytes(serialization.Encoding.PEM).decode()
+
+        upload_r = auth_client.post('/api/v2/csrs/upload', json={
+            'pem': csr_pem, 'name': 'test CSR',
+        })
+        assert upload_r.status_code in (200, 201), f'Upload CSR failed ({upload_r.status_code})'
+        csr_id = json.loads(upload_r.data)['data']['id']
+
+        r = auth_client.post(f'/api/v2/csrs/{csr_id}/sign', json={'ca_id': ca['id']})
+        assert r.status_code == 400
+        assert 'offline' in r.data.decode('utf-8', errors='replace').lower()
+
+    def test_ca_list_shows_offline_label(self, auth_client, create_ca):
+        ca = create_ca()
+        auth_client.post(f'/api/v2/cas/{ca["id"]}/offline', json={
+            'password': self.GOOD_PWD,
+        })
+        r = auth_client.get('/api/v2/cas')
+        items = json.loads(r.data)['data']
+        found = [c for c in items if c['id'] == ca['id']]
+        assert len(found) == 1
+        assert found[0]['offline'] is True
+        assert found[0]['offline_label'] == 'Offline'
+
+
+# ============================================================
 # Viewer Role — read-only access
 # ============================================================
 

@@ -425,7 +425,8 @@
     "scanNetwork": "Netzwerk scannen",
     "generateReport": "Bericht generieren",
     "healthStatus": "Gesundheitsstatus",
-    "remove": "Entfernen"
+    "remove": "Entfernen",
+    "continue": "Weiter"
   },
   "commandPalette": {
     "searchPlaceholder": "Befehle, Zertifikate, CAs, Benutzer suchen...",
@@ -792,7 +793,7 @@
     "deleteCAButton": "CA löschen",
     "deleteFailed": "Fehler beim Löschen der CA",
     "exportFailed": "Fehler beim Exportieren der CA",
-    "passwordTooShort": "Passwort muss mindestens 4 Zeichen lang sein",
+    "passwordTooShort": "Passwort muss mindestens 12 Zeichen lang sein",
     "exportedAs": "CA als {{format}} exportiert",
     "createFailed": "Fehler beim Erstellen der CA",
     "unnamedCA": "Unbenannte CA",
@@ -804,6 +805,15 @@
     "certificateCount": "{{count}} Zertifikate",
     "daysLeft": "{{count}} Tage übrig",
     "daysLeft_one": "{{count}} Tag übrig",
+    "offline": "Offline",
+    "offlinePassword": "Passwort",
+    "offlineMode": "Offline-Modus",
+    "offlinePasswordProtected": "Passwortgeschützt",
+    "offlineFileExported": "Schlüsseldatei exportiert",
+    "takeOffline": "Offline schalten",
+    "restore": "CA wiederherstellen",
+    "offlineFailed": "Fehler beim Offline-Schalten der CA",
+    "restoreFailed": "Fehler bei der Wiederherstellung der CA",
     "descriptionPlaceholder": "Optionale Beschreibung für diese CA",
     "advancedConstraints": "Erweiterte Einschränkungen (RFC 5280)",
     "pathLength": "Pfadlängenbeschränkung",
@@ -839,7 +849,32 @@
       "hsmBacked": "HSM-gesichert",
       "hsmKey": "HSM-Schlüssel",
       "exportBlockedHsm": "HSM-gesicherter Schlüssel kann nicht exportiert werden"
-    }
+    },
+    "offlineExplain": {
+      "title": "Was bewirkt das Offline-Schalten einer CA?",
+      "body": "Eine Offline-CA kann bis zur Wiederherstellung keine neuen Zertifikate oder CRLs signieren. Geeignet für Root-CAs, die nur für Zeremonien online gebracht werden sollen.",
+      "bullet1": "Jegliche Zertifikatssignierung ist blockiert",
+      "bullet2": "CRL-Erzeugung ist blockiert",
+      "bullet3": "Bestehende Zertifikate bleiben gültig"
+    },
+    "offlineModeDesc": {
+      "passwordProtected": "Verschlüsselt den privaten Schlüssel mit Ihrem Passwort in der Datenbank. Die CA bleibt in UCM und wird durch Passworteingabe wiederhergestellt.",
+      "fileExported": "Exportiert den verschlüsselten privaten Schlüssel als Datei und entfernt ihn aus der Datenbank. UCM hält den Schlüssel nicht mehr — bewahren Sie die Datei sicher auf."
+    },
+    "offlineFileExportedWarning": "Nach dem Download wird der private Schlüssel dauerhaft aus dieser UCM-Instanz entfernt. Bewahren Sie die heruntergeladene Datei sicher auf — sie ist die einzige Kopie.",
+    "offlinePasswordHint": "Mindestens 12 Zeichen. Dieses Passwort verschlüsselt den privaten Schlüssel.",
+    "offlinePasswordConfirm": "Passwort bestätigen",
+    "passwordMismatch": "Passwörter stimmen nicht überein",
+    "takeOfflineAndDownload": "Offline schalten & Schlüssel herunterladen",
+    "restoreExplain": {
+      "title": "CA wiederherstellen",
+      "passwordProtected": "Diese CA wurde mit Passwortschutz offline geschaltet. Geben Sie das Passwort ein, um den privaten Schlüssel zu entschlüsseln und die Signierung wiederherzustellen.",
+      "fileExported": "Diese CA wurde mit Schlüsseldatei-Export offline geschaltet. Laden Sie die verschlüsselte Schlüsseldatei hoch und geben Sie das Passwort ein, um die Signierung wiederherzustellen."
+    },
+    "offlineKeyFile": "Verschlüsselte Schlüsseldatei",
+    "offlineKeyFilePick": "Schlüsseldatei wählen",
+    "offlineKeyFileTooLarge": "Schlüsseldatei zu groß (max 256 KB)",
+    "restorePasswordHint": "Das beim Offline-Schalten der CA verwendete Passwort."
   },
   "csrs": {
     "uploadCSR": "CSR hochladen",
@@ -1899,6 +1934,19 @@
     "encryptionDesc": "Verschlüsselt alle in der Datenbank gespeicherten privaten Schlüssel mit AES-256. Geschützt durch einen Hauptschlüssel in /etc/ucm/master.key.",
     "enableEncryption": "Verschlüsselung aktivieren",
     "disableEncryption": "Verschlüsselung deaktivieren",
+    "backupMasterKey": "Hauptschlüssel sichern",
+    "masterKeyBackupTitle": "Sichern Sie Ihren Hauptschlüssel",
+    "masterKeyBackupCritical": "Kritisch: sichern Sie diesen Schlüssel JETZT",
+    "masterKeyBackupDesc": "Ohne diese Datei werden alle verschlüsselten privaten Schlüssel (CAs, Zertifikate, ACME-Konten, SSH-CA, Webhook-Geheimnisse) unwiederherstellbar. Sie zu verlieren bedeutet, Ihre PKI zu verlieren.",
+    "masterKeyBackupInstructions": "Laden Sie den Hauptschlüssel herunter und bewahren Sie ihn an mindestens zwei sicheren Orten auf, z. B.:",
+    "masterKeyBackupTip1": "Einem Passwort-Manager (1Password, Bitwarden, KeePass)",
+    "masterKeyBackupTip2": "Einem verschlüsselten Offline-USB-Stick in einem Safe",
+    "masterKeyBackupTip3": "Dem Secrets-Management-System Ihrer Organisation (Vault, AWS Secrets Manager)",
+    "masterKeyDownloadNow": "Hauptschlüssel herunterladen",
+    "masterKeyDownloadAgain": "Erneut herunterladen",
+    "masterKeyBackupConfirm": "Ich habe den Hauptschlüssel sicher gespeichert und verstehe, dass sein Verlust alle verschlüsselten Daten unwiederherstellbar macht.",
+    "masterKeyDownloaded": "Hauptschlüssel heruntergeladen",
+    "masterKeyDownloadFailed": "Hauptschlüssel konnte nicht heruntergeladen werden",
     "encryptionEnabled": "Verschlüsselung aktiviert. Alle privaten Schlüssel sind jetzt verschlüsselt.",
     "encryptionDisabled": "Verschlüsselung deaktiviert. Private Schlüssel werden unverschlüsselt gespeichert.",
     "encryptionEnableFailed": "Aktivierung der Verschlüsselung fehlgeschlagen",
@@ -1962,7 +2010,8 @@
       "webhooks": "Webhooks",
       "about": "Über",
       "microsoftCA": "Microsoft CA",
-      "ct": "CT"
+      "ct": "CT",
+      "autoRenewal": "Auto-Erneuerung"
     },
     "testRecipient": "Testempfänger",
     "testRecipientRequired": "Geben Sie eine Empfänger-E-Mail-Adresse für den Test ein",
@@ -2011,7 +2060,8 @@
       "notifications": "Benachrichtigungen",
       "interface": "Oberfläche",
       "about": "Info",
-      "integrations": "Integrationen"
+      "integrations": "Integrationen",
+      "automation": "Automatisierung"
     },
     "remoteSyslog": "Remote Syslog",
     "remoteSyslogDesc": "Forward audit log events to a remote syslog server for centralized logging and SIEM integration.",
@@ -2146,7 +2196,29 @@
     "smtpOauthSetup_microsoft_title": "Outlook.com (persönlich) — einmalige Azure-Konfiguration",
     "smtpOauthSetup_microsoft_steps": "Mobile Mail-Apps (iOS Mail, Thunderbird, etc.) verwenden von Microsoft veröffentlichte Client-IDs, die sie nicht gemeinsam nutzen können. Da UCM selbst gehostet ist, erstellen Sie Ihre eigene — kostenlos und dauert 5 Minuten:\n\n1. Melden Sie sich mit einem beliebigen Microsoft-Konto beim Azure Portal an (kostenlos, kein Abonnement erforderlich).\n2. App registrations → New registration → wählen Sie 'Personal Microsoft accounts only'.\n3. Fügen Sie den unten angezeigten Redirect-URI hinzu (Web-Plattform).\n4. Certificates & secrets → New client secret → kopieren Sie den Wert.\n5. API permissions → fügen Sie 'SMTP.Send' und 'offline_access' hinzu (Microsoft Graph, delegiert).\n6. Kopieren Sie die Application (client) ID und den geheimen Wert in die Felder unten.",
     "smtpOauthSetup_microsoft365_title": "Microsoft 365 einrichten (Arbeit / Schule)",
-    "smtpOauthSetup_microsoft365_steps": "1. Melden Sie sich als Tenant-Administrator beim Azure Portal an.\n2. App registrations → New registration → wählen Sie 'Accounts in this organizational directory only' (oder multitenant).\n3. Fügen Sie die unten angezeigte Umleitungs-URI (Web-Plattform) hinzu.\n4. Certificates & secrets → New client secret → kopieren Sie den Value.\n5. API permissions → add 'SMTP.Send' und 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Kopieren Sie die Application (client) ID, den secret Value und Ihre Tenant ID (Directory ID) in die folgenden Felder."
+    "smtpOauthSetup_microsoft365_steps": "1. Melden Sie sich als Tenant-Administrator beim Azure Portal an.\n2. App registrations → New registration → wählen Sie 'Accounts in this organizational directory only' (oder multitenant).\n3. Fügen Sie die unten angezeigte Umleitungs-URI (Web-Plattform) hinzu.\n4. Certificates & secrets → New client secret → kopieren Sie den Value.\n5. API permissions → add 'SMTP.Send' und 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Kopieren Sie die Application (client) ID, den secret Value und Ihre Tenant ID (Directory ID) in die folgenden Felder.",
+    "autoRenewal": "Automatische Erneuerung",
+    "autoRenewalDescription": "Zertifikate vor Ablauf automatisch erneuern",
+    "autoRenewalEnabled": "Automatische Erneuerung aktivieren",
+    "autoRenewalEnabledDesc": "Planer läuft alle 12 Stunden und erneuert zulässige Zertifikate",
+    "autoRenewalDays": "Erneuern wenn Ablauf in (Tagen)",
+    "autoRenewalDaysHelp": "Zertifikate, die innerhalb dieser Tage ablaufen, werden automatisch erneuert",
+    "autoRenewalSources": "Zulässige Quellen",
+    "autoRenewalSourcesHelp": "Nur Zertifikate aus den ausgewählten Protokollen werden erneuert",
+    "autoRenewalSource_scep": "SCEP",
+    "autoRenewalSource_acme": "ACME",
+    "autoRenewalSource_est": "EST",
+    "autoRenewalNotifications": "Benachrichtigungen",
+    "autoRenewalNotifyOnRenewal": "E-Mail bei erfolgreicher Erneuerung",
+    "autoRenewalNotifyOnFailure": "E-Mail bei fehlgeschlagener Erneuerung",
+    "autoRenewalNotifyEmails": "Empfänger der Benachrichtigungen",
+    "autoRenewalNotifyEmailsHelp": "E-Mail-Adressen für Erneuerungsberichte",
+    "autoRenewalRunNow": "Jetzt ausführen",
+    "autoRenewalRunDisabled": "Erst automatische Erneuerung aktivieren",
+    "autoRenewalRunSuccess": "Erneuerung abgeschlossen: {{renewed}} erneuert, {{failed}} fehlgeschlagen",
+    "autoRenewalRunFailed": "Automatische Erneuerung fehlgeschlagen",
+    "autoRenewalSettingsUpdated": "Einstellungen für automatische Erneuerung aktualisiert",
+    "autoRenewalSettingsFailed": "Fehler beim Aktualisieren der Einstellungen"
   },
   "account": {
     "profile": "Profil",
@@ -2809,7 +2881,53 @@
     "toggleSuccess": "Webhook {{action}}",
     "toggleFailed": "Failed to toggle webhook",
     "testSuccess": "Test event sent successfully",
-    "testFailed": "Failed to send test event"
+    "testFailed": "Failed to send test event",
+    "auth": {
+      "title": "Authentication",
+      "type": {
+        "label": "Auth Type",
+        "options": {
+          "none": "None",
+          "bearer": "Bearer Token",
+          "basic": "Basic Auth",
+          "api_key": "API Key (custom header)",
+          "custom": "Custom Header"
+        }
+      },
+      "token": {
+        "label": "Token",
+        "placeholder": "Enter token value",
+        "set": "Token set — leave blank to keep, or clear to remove",
+        "clear": "Clear token",
+        "show": "Show token",
+        "hide": "Hide token"
+      },
+      "username": {
+        "label": "Username"
+      },
+      "headerName": {
+        "label": "Header Name",
+        "placeholder": "X-API-Key"
+      },
+      "custom": {
+        "helper": "Include the auth scheme in the value, e.g. `auth-key YOUR_TOKEN`"
+      },
+      "apiKey": {
+        "authorizationWarning": "\"Authorization\" is reserved for Bearer/Basic. Use the Custom Header type instead to set Authorization directly."
+      },
+      "preview": {
+        "title": "Outgoing header preview",
+        "reveal": "Reveal",
+        "hide": "Hide"
+      },
+      "errors": {
+        "tokenRequired": "Token is required for this auth type",
+        "usernameRequired": "Username is required for Basic Auth",
+        "headerNameRequired": "Header name is required",
+        "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
+        "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    }
   },
   "safeMode": {
     "title": "Abgesicherter Modus",
@@ -3070,7 +3188,9 @@
         "template": "Vorlage erfolgreich erstellt",
         "user": "Benutzer erfolgreich erstellt",
         "sshCa": "SSH CA created successfully",
-        "sshCertificate": "SSH certificate issued successfully"
+        "sshCertificate": "SSH certificate issued successfully",
+        "caOffline": "CA offline",
+        "caRestored": "CA wieder online"
       },
       "crl": {
         "generated": "CRL erfolgreich neu generiert"

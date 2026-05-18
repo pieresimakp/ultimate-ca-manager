@@ -9,6 +9,68 @@ Starting with v2.48, UCM uses Major.Build versioning (e.g., 2.48, 2.49). Earlier
 
 ## [Unreleased]
 
+## [2.156] - 2026-05-12
+
+### Added
+- **Webhook custom authentication** (#116) — five auth types per webhook: `none`, `bearer`, `basic`, `api_key`, `custom`. Tokens encrypted at rest, never returned in API responses (only `auth_token_set` boolean). PUT semantics: omitted token preserves existing, null clears, empty string is rejected.
+- Migration 036 adds `auth_type`, `auth_token` (encrypted), `auth_username`, `auth_header_name` columns to `webhooks` (dual-backend SQLite + PostgreSQL).
+- Webhook form UI: auth type selector with conditional fields (token, username, header name), live request-preview pane with token masking, explicit clear-token control.
+- Audit events: `webhook.auth_configured`, `webhook.auth_disabled`, `webhook.auth_token_rotated`, `webhook.auth_token_invalid`.
+- 18 backend integration tests + 20 frontend tests covering all 5 auth types, PUT semantics, validation errors, and token masking.
+- Webhook auth documentation in settings help page (all 9 languages).
+
+### Security
+- `Authorization` header value blocked when `auth_type=api_key` (forces operator to use bearer/basic for that scheme).
+- Token capped at 8192 bytes.
+- Tokens stored using the same encrypted-property pattern as other secrets (master key in `/etc/ucm/master.key`).
+
+### Fixed
+- `DELETE /api/v2/webhooks/<id>` now returns 204 No Content (was 200 with body), aligning with the project DELETE convention.
+
+## [2.155] - 2026-05-10
+
+Auto-renewal UI, PostgreSQL migration recovery (closes [#115](https://github.com/NeySlim/ultimate-ca-manager/issues/115)), LAN-friendly rate limiting, and master-key backup safeguards.
+Validated 6/6 across SQLite and PostgreSQL on Debian, RHEL/Fedora, and Docker.
+
+### Added
+- **Auto-renewal settings UI** — dedicated section in Settings to configure global renewal threshold, retry policy, scheduler interval, and per-CA overrides. Backend endpoints `GET/PUT /api/v2/settings/auto-renewal` with full validation.
+- **Master-key backup UX** — new `GET /api/v2/system/security/master-key/download` endpoint (admin-only, audited). `enable-encryption` now returns the master key inline (one-time) with `backup_required: true`. Settings → Security shows a "Back Up Master Key" action when the key is file-sourced. A confirm-gated modal forces the operator to download and acknowledge before dismissal. The endpoint returns 409 when the key is supplied via environment variable (operator must back it up out-of-band).
+- Dockerfile now declares `VOLUME ["/etc/ucm", "/opt/ucm/data"]` so master.key survives container recreation when no explicit bind mount is provided.
+
+### Fixed
+- **PostgreSQL migrations** ([#115](https://github.com/NeySlim/ultimate-ca-manager/issues/115)) — migrations 029, 031, 032, 033, 034 are now dual-backend (SQLite + PostgreSQL). Adds reconcile migration `035_reconcile_pg_schema.py` to repair PG instances that booted on a SQLite-only release. The migration runner now refuses to start in strict mode if SQLite-only migrations would be skipped on PostgreSQL past the 020 boundary.
+
+### Changed
+- **Rate limiter** — LAN clients (RFC1918 + loopback) bypass rate limits by default (`RATE_LIMIT_TRUST_LAN=true`). Standard tier raised from 300/min to 600/min and from 60 burst to 100, removing false positives on busy on-prem deployments.
+
+## [2.154] - 2026-05-10
+
+Fixes OPNsense 26.1.x certificate import (closes [#114](https://github.com/NeySlim/ultimate-ca-manager/issues/114)).
+Validated 6/6 across SQLite and PostgreSQL on Debian, RHEL/Fedora, and Docker.
+
+### Fixed
+- **OPNsense import** — three bugs prevented the API-based import path from working against OPNsense 26.1.x:
+  - Frontend service did not unwrap `success_response.data`, so the items list was empty after `Connect` and the `Import Selected` button never rendered.
+  - Backend stored OPNsense `uuid` as UCM `refid`, breaking the `caref` linkage between certificates and their CA (OPNsense uses the 13-char `refid` as cross-reference, not the 36-char `uuid`).
+  - Imported private keys were stored raw instead of going through `store_pem_bytes()`, bypassing encryption-at-rest.
+- Importer now performs a 2-pass import (CAs before certificates), resolves `caref` against in-flight CAs, extracts SAN/SKI/AKI/serial, falls back to `crt_payload`/`prv_payload` when `crt`/`prv` are absent, and treats an empty selection as "import all".
+- Added regression test `test_opnsense_import.py` covering refid storage, caref linkage, and encrypted private-key round-trip.
+
+## [2.153] - 2026-05-10
+
+Adds CA offline mode (closes [#106](https://github.com/NeySlim/ultimate-ca-manager/issues/106)).
+Validated 6/6 across SQLite and PostgreSQL on Debian, RHEL/Fedora, and Docker.
+
+### Added
+- **CA offline mode** — take any CA offline to block signing while keeping the public certificate usable for chain validation, CDP and OCSP. Two modes:
+  - **Password-protected** — private key re-wrapped with a user-supplied password (PKCS#8) on top of the existing master-key wrap, restore requires the password.
+  - **File-exported** — private key returned as a password-encrypted PKCS#8 PEM and removed from the database, restore requires re-uploading the file plus the password.
+- Sign/issue/CRL paths gate on `ca.offline` (`csrs.py`, `services/cert/mixins/csr.py`, `services/ca/ca_signing.py`, `crl.py`). The legacy `update_ca` backdoor is closed — only the dedicated take-offline / restore endpoints can flip the flag.
+- Frontend: `TakeOfflineModal`, `RestoreModal`, offline-aware `StatusBadge` + dedicated `OfflineBadge` across all 4 CA list views, action buttons in `CADetailsPanel` and the floating detail window.
+- Audit actions: `ca.offline.password_protected`, `ca.offline.file_exported`, `ca.restore.password_protected`, `ca.restore.file_exported`.
+- In-app help, GitHub wiki page (`CA-Offline-Mode`), and documentation in `USER_GUIDE.md` + `SECURITY.md` threat model.
+- Migration `034_add_ca_offline.py` adds `offline`, `offline_reason`, `offline_mode` columns.
+
 ## [2.152] - 2026-05-08
 
 Security and RFC-compliance hardening pass across all PKI protocols and resource APIs.

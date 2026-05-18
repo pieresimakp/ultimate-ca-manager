@@ -17,7 +17,7 @@ export default {
           { label: '数据库', text: '活动后端（SQLite 或 PostgreSQL）、大小、表数量、在后端之间测试/切换/迁移' },
           { label: 'HTTPS', text: 'UCM Web 界面的 TLS 证书' },
           { label: '更新', text: '检查新版本、查看变更日志、自动更新（DEB/RPM）' },
-          { label: 'Webhook', text: '证书事件（签发、吊销、过期）的 HTTP Webhook' },
+          { label: 'Webhook', text: '证书事件（签发、吊销、过期）的 HTTP Webhook — 允许内部 LAN URL；阻止云元数据 IP。可选出站认证：Bearer、Basic、API 密钥或自定义标头' },
         ]
       },
       {
@@ -226,12 +226,25 @@ UCM 支持两种数据库后端：
 - 用户登录、登出
 - 备份已创建
 
+### 认证
+
+可选出站认证（适用于可选 HMAC 签名之外）：
+
+- **无** — 无认证标头（公开 Webhook）
+- **Bearer** — \`Authorization: Bearer <令牌>\`
+- **Basic** — \`Authorization: Basic <base64(用户:密码)>\`
+- **API 密钥** — 自定义标头（如 \`X-Api-Key: <令牌>\`）
+- **自定义** — \`Authorization: <方案> <令牌>\`（如 \`auth-key 值\`）
+
+令牌以加密方式存储，不会在 UI 中返回。
+
 ### 创建 Webhook
 1. 点击**添加 Webhook**
 2. 输入 **URL**（必须是 HTTPS）
 3. 选择要订阅的**事件**
-4. 可选设置**密钥**用于 HMAC 签名验证
-5. 点击**创建**
+4. 选择**认证类型**并提供凭据（可选）
+5. 可选设置**密钥**用于 HMAC 签名验证
+6. 点击**创建**
 
 ### 测试
 点击**测试**向 Webhook URL 发送示例事件并验证其可达性。

@@ -17,7 +17,7 @@ export default {
           { label: 'Base de données', text: 'Backend actif (SQLite ou PostgreSQL), taille, nombre de tables, tester/basculer/migrer entre les backends' },
           { label: 'HTTPS', text: 'Certificat TLS pour l\'interface web UCM' },
           { label: 'Mises à jour', text: 'Vérifier les nouvelles versions, voir le journal des modifications, mise à jour automatique (DEB/RPM)' },
-          { label: 'Webhooks', text: 'Webhooks HTTP pour les événements de certificat (émission, révocation, expiration)' },
+          { label: 'Webhooks', text: 'Webhooks HTTP pour les événements de certificat (émission, révocation, expiration). Authentification sortante optionnelle : Bearer, Basic, API key ou en-tête personnalisé' },
         ]
       },
       {
@@ -225,12 +225,25 @@ Configurez des webhooks HTTP pour notifier les systèmes externes lors d'événe
 - Connexion utilisateur, déconnexion
 - Sauvegarde créée
 
+### Authentification
+
+Authentification sortante optionnelle (s'ajoute à la signature HMAC optionnelle) :
+
+- **Aucune** — Pas d'en-tête d'authentification (webhooks publics)
+- **Bearer** — Authorization: Bearer {token}
+- **Basic** — Authorization: Basic base64(utilisateur:motdepasse)
+- **Clé API** — En-tête personnalisé (p.ex. X-Api-Key: {token})
+- **Personnalisée** — Authorization: {schéma} {token} (p.ex. auth-key VALEUR)
+
+Les tokens sont stockés chiffrés et jamais renvoyés dans l'UI.
+
 ### Créer un webhook
 1. Cliquez sur **Ajouter un webhook**
 2. Entrez l'**URL** (doit être HTTPS)
 3. Sélectionnez les **événements** auxquels s'abonner
-4. Définissez optionnellement un **secret** pour la vérification de signature HMAC
-5. Cliquez sur **Créer**
+4. Choisissez le **type d'authentification** et fournissez les identifiants (optionnel)
+5. Définissez optionnellement un **secret** pour la vérification de signature HMAC
+6. Cliquez sur **Créer**
 
 ### Test
 Cliquez sur **Tester** pour envoyer un événement exemple à l'URL du webhook et vérifier qu'il est accessible.

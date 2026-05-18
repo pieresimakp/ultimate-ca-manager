@@ -425,7 +425,8 @@
     "scanNetwork": "Escanear rede",
     "generateReport": "Gerar relatório",
     "healthStatus": "Estado de saúde",
-    "remove": "Remover"
+    "remove": "Remover",
+    "continue": "Continuar"
   },
   "commandPalette": {
     "searchPlaceholder": "Pesquisar comandos, certificados, CAs, usuários...",
@@ -792,7 +793,7 @@
     "deleteCAButton": "Eliminar AC",
     "deleteFailed": "Falha ao eliminar AC",
     "exportFailed": "Falhado para export AC",
-    "passwordTooShort": "Palavra-passe deve ser em least 4 characters",
+    "passwordTooShort": "A senha deve ter pelo menos 12 caracteres",
     "exportedAs": "AC exported as {{format}}",
     "createFailed": "Falha ao criar AC",
     "unnamedCA": "Unnamed AC",
@@ -804,6 +805,15 @@
     "certificateCount": "{{count}} certificados",
     "daysLeft": "{{count}} dias restantes",
     "daysLeft_one": "{{count}} dia restante",
+    "offline": "Offline",
+    "offlinePassword": "Senha",
+    "offlineMode": "Modo offline",
+    "offlinePasswordProtected": "Protegido por senha",
+    "offlineFileExported": "Arquivo de chave exportado",
+    "takeOffline": "Colocar offline",
+    "restore": "Restaurar CA",
+    "offlineFailed": "Falha ao colocar CA offline",
+    "restoreFailed": "Falha ao restaurar CA",
     "descriptionPlaceholder": "Descrição opcional para esta CA",
     "advancedConstraints": "Restrições avançadas (RFC 5280)",
     "pathLength": "Restrição de comprimento do caminho",
@@ -839,7 +849,32 @@
       "hsmBacked": "Apoiada por HSM",
       "hsmKey": "Chave HSM",
       "exportBlockedHsm": "A chave apoiada por HSM não pode ser exportada"
-    }
+    },
+    "offlineExplain": {
+      "title": "O que faz colocar uma CA offline?",
+      "body": "Uma CA offline não pode assinar novos certificados nem CRLs até ser restaurada. Use para CAs raiz que devem ser colocadas online apenas em cerimônias.",
+      "bullet1": "Toda assinatura de certificados é bloqueada",
+      "bullet2": "A geração de CRL é bloqueada",
+      "bullet3": "Os certificados existentes permanecem válidos"
+    },
+    "offlineModeDesc": {
+      "passwordProtected": "Cifra a chave privada no banco de dados com sua senha. A CA permanece no UCM e é restaurada digitando a senha.",
+      "fileExported": "Exporta a chave privada cifrada como arquivo e a remove do banco de dados. O UCM não guarda mais a chave — armazene o arquivo em local seguro."
+    },
+    "offlineFileExportedWarning": "Após o download, a chave privada será removida permanentemente desta instância UCM. Mantenha o arquivo baixado em segurança — é a única cópia.",
+    "offlinePasswordHint": "Mínimo de 12 caracteres. Esta senha cifra a chave privada.",
+    "offlinePasswordConfirm": "Confirmar senha",
+    "passwordMismatch": "As senhas não coincidem",
+    "takeOfflineAndDownload": "Colocar offline e baixar chave",
+    "restoreExplain": {
+      "title": "Restaurar CA",
+      "passwordProtected": "Esta CA foi colocada offline com proteção por senha. Digite a senha para decifrar a chave privada e restaurar a assinatura.",
+      "fileExported": "Esta CA foi colocada offline com exportação de arquivo de chave. Faça upload do arquivo de chave cifrado e digite a senha para restaurar a assinatura."
+    },
+    "offlineKeyFile": "Arquivo de chave cifrado",
+    "offlineKeyFilePick": "Escolher arquivo de chave",
+    "offlineKeyFileTooLarge": "Arquivo de chave muito grande (máx. 256 KB)",
+    "restorePasswordHint": "A senha usada quando a CA foi colocada offline."
   },
   "csrs": {
     "uploadCSR": "Carregar CSR",
@@ -1899,6 +1934,19 @@
     "encryptionDesc": "Criptografa todas as chaves privadas no banco de dados com AES-256. Protegidas por uma chave mestra em /etc/ucm/master.key.",
     "enableEncryption": "Ativar criptografia",
     "disableEncryption": "Desativar criptografia",
+    "backupMasterKey": "Backup da chave mestra",
+    "masterKeyBackupTitle": "Faça backup da sua chave mestra",
+    "masterKeyBackupCritical": "Crítico: faça backup desta chave AGORA",
+    "masterKeyBackupDesc": "Sem este arquivo, todas as chaves privadas criptografadas (ACs, certificados, contas ACME, AC SSH, segredos de webhook) se tornam irrecuperáveis. Perdê-lo significa perder sua PKI.",
+    "masterKeyBackupInstructions": "Baixe a chave mestra e armazene-a em pelo menos dois locais seguros, como:",
+    "masterKeyBackupTip1": "Um gerenciador de senhas (1Password, Bitwarden, KeePass)",
+    "masterKeyBackupTip2": "Uma unidade USB criptografada offline guardada em um cofre",
+    "masterKeyBackupTip3": "O sistema de gerenciamento de segredos da sua organização (Vault, AWS Secrets Manager)",
+    "masterKeyDownloadNow": "Baixar chave mestra",
+    "masterKeyDownloadAgain": "Baixar novamente",
+    "masterKeyBackupConfirm": "Armazenei a chave mestra com segurança e entendo que perdê-la torna todos os dados criptografados irrecuperáveis.",
+    "masterKeyDownloaded": "Chave mestra baixada",
+    "masterKeyDownloadFailed": "Falha ao baixar a chave mestra",
     "encryptionEnabled": "Criptografia ativada. Todas as chaves privadas estão agora criptografadas.",
     "encryptionDisabled": "Criptografia desativada. As chaves privadas são armazenadas sem criptografia.",
     "encryptionEnableFailed": "Falha ao ativar criptografia",
@@ -1962,7 +2010,8 @@
       "webhooks": "Webhooks",
       "about": "Sobre",
       "microsoftCA": "Microsoft CA",
-      "ct": "CT"
+      "ct": "CT",
+      "autoRenewal": "Renovação auto"
     },
     "testRecipient": "Destinatário de teste",
     "testRecipientRequired": "Insira um endereço de email destinatário para o teste",
@@ -2011,7 +2060,8 @@
       "notifications": "Notificações",
       "interface": "Interface",
       "about": "Info",
-      "integrations": "Integrações"
+      "integrations": "Integrações",
+      "automation": "Automação"
     },
     "remoteSyslog": "Remote Syslog",
     "remoteSyslogDesc": "Forward audit log events to a remote syslog server for centralized logging and SIEM integration.",
@@ -2146,7 +2196,29 @@
     "smtpOauthSetup_microsoft_title": "Outlook.com (pessoal) — configuração Azure única",
     "smtpOauthSetup_microsoft_steps": "Aplicativos de correio móvel (iOS Mail, Thunderbird, etc.) usam IDs de cliente publicados pela Microsoft que não podem compartilhar. Como UCM é auto-hospedado, você cria o seu — é gratuito e leva 5 minutos:\n\n1. Entre no Azure Portal com qualquer conta Microsoft (gratuito, sem assinatura necessária).\n2. App registrations → New registration → escolha 'Personal Microsoft accounts only'.\n3. Adicione o URI de redirecionamento mostrado abaixo (plataforma da Web).\n4. Certificates & secrets → New client secret → copie o Valor.\n5. API permissions → adicione 'SMTP.Send' e 'offline_access' (Microsoft Graph, delegado).\n6. Copie o Application (client) ID e o Valor do secret nos campos abaixo.",
     "smtpOauthSetup_microsoft365_title": "Como configurar Microsoft 365 (trabalho / escola)",
-    "smtpOauthSetup_microsoft365_steps": "1. Faça login no Azure Portal como administrador de tenant.\n2. App registrations → New registration → escolha 'Accounts in this organizational directory only' (ou multitenant).\n3. Adicione o URI de redirecionamento mostrado abaixo (plataforma Web).\n4. Certificates & secrets → New client secret → copie o Value.\n5. API permissions → add 'SMTP.Send' e 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copie o Application (client) ID, o secret Value e seu Tenant ID (Directory ID) para os campos abaixo."
+    "smtpOauthSetup_microsoft365_steps": "1. Faça login no Azure Portal como administrador de tenant.\n2. App registrations → New registration → escolha 'Accounts in this organizational directory only' (ou multitenant).\n3. Adicione o URI de redirecionamento mostrado abaixo (plataforma Web).\n4. Certificates & secrets → New client secret → copie o Value.\n5. API permissions → add 'SMTP.Send' e 'offline_access' (Microsoft Graph, delegated) → Grant admin consent.\n6. Copie o Application (client) ID, o secret Value e seu Tenant ID (Directory ID) para os campos abaixo.",
+    "autoRenewal": "Renovação automática",
+    "autoRenewalDescription": "Renova certificados automaticamente antes do vencimento",
+    "autoRenewalEnabled": "Ativar renovação automática",
+    "autoRenewalEnabledDesc": "O agendador é executado a cada 12 horas e renova certificados elegíveis",
+    "autoRenewalDays": "Renovar se vencer em (dias)",
+    "autoRenewalDaysHelp": "Certificados que vencem dentro desses dias serão renovados automaticamente",
+    "autoRenewalSources": "Origens elegíveis",
+    "autoRenewalSourcesHelp": "Somente certificados emitidos pelos protocolos selecionados serão renovados",
+    "autoRenewalSource_scep": "SCEP",
+    "autoRenewalSource_acme": "ACME",
+    "autoRenewalSource_est": "EST",
+    "autoRenewalNotifications": "Notificações",
+    "autoRenewalNotifyOnRenewal": "Notificar renovações com sucesso por email",
+    "autoRenewalNotifyOnFailure": "Notificar renovações com falha por email",
+    "autoRenewalNotifyEmails": "Destinatários das notificações",
+    "autoRenewalNotifyEmailsHelp": "Endereços de email que recebem os relatórios de renovação",
+    "autoRenewalRunNow": "Executar agora",
+    "autoRenewalRunDisabled": "Ative primeiro a renovação automática",
+    "autoRenewalRunSuccess": "Renovação concluída: {{renewed}} renovados, {{failed}} falharam",
+    "autoRenewalRunFailed": "Falha na execução da renovação automática",
+    "autoRenewalSettingsUpdated": "Configurações de renovação automática atualizadas",
+    "autoRenewalSettingsFailed": "Falha ao atualizar configurações de renovação"
   },
   "account": {
     "profile": "Perfil",
@@ -2809,7 +2881,53 @@
     "toggleSuccess": "Webhook {{action}}",
     "toggleFailed": "Falha ao alternar webhook",
     "testSuccess": "Evento de teste enviado com sucesso",
-    "testFailed": "Falha ao enviar evento de teste"
+    "testFailed": "Falha ao enviar evento de teste",
+    "auth": {
+      "title": "Authentication",
+      "type": {
+        "label": "Auth Type",
+        "options": {
+          "none": "None",
+          "bearer": "Bearer Token",
+          "basic": "Basic Auth",
+          "api_key": "API Key (custom header)",
+          "custom": "Custom Header"
+        }
+      },
+      "token": {
+        "label": "Token",
+        "placeholder": "Enter token value",
+        "set": "Token set — leave blank to keep, or clear to remove",
+        "clear": "Clear token",
+        "show": "Show token",
+        "hide": "Hide token"
+      },
+      "username": {
+        "label": "Username"
+      },
+      "headerName": {
+        "label": "Header Name",
+        "placeholder": "X-API-Key"
+      },
+      "custom": {
+        "helper": "Include the auth scheme in the value, e.g. `auth-key YOUR_TOKEN`"
+      },
+      "apiKey": {
+        "authorizationWarning": "\"Authorization\" is reserved for Bearer/Basic. Use the Custom Header type instead to set Authorization directly."
+      },
+      "preview": {
+        "title": "Outgoing header preview",
+        "reveal": "Reveal",
+        "hide": "Hide"
+      },
+      "errors": {
+        "tokenRequired": "Token is required for this auth type",
+        "usernameRequired": "Username is required for Basic Auth",
+        "headerNameRequired": "Header name is required",
+        "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
+        "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    }
   },
   "safeMode": {
     "title": "Modo seguro",
@@ -3070,7 +3188,9 @@
         "template": "Template criado com sucesso",
         "user": "Usuário criado com sucesso",
         "sshCa": "SSH CA created successfully",
-        "sshCertificate": "SSH certificate issued successfully"
+        "sshCertificate": "SSH certificate issued successfully",
+        "caOffline": "CA offline",
+        "caRestored": "CA restaurada para o estado online"
       },
       "crl": {
         "generated": "CRL regenerada com sucesso"

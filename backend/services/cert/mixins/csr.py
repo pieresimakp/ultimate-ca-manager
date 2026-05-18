@@ -178,6 +178,9 @@ class CSRMixin:
         if not ca.has_private_key:
             raise ValueError("CA has no private key")
 
+        if ca.offline:
+            raise ValueError("CA is offline")
+
         # Load CA cert and key
         ca_cert_pem = base64.b64decode(ca.crt)
         ca_cert = x509.load_pem_x509_certificate(ca_cert_pem, default_backend())

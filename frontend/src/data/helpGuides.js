@@ -194,6 +194,49 @@ UCM can store a CA's signing key on an external Hardware Security Module instead
 - HSM-backed private keys **cannot be exported**. PKCS#12, JKS and key-only export options are hidden for HSM CAs. Only the certificate (PEM/DER/P7B) can be exported.
 - There is **no in-place migration** between Local and HSM. To "move" an existing local CA onto an HSM, create a new CA on the HSM and re-issue certificates.
 - Existing keys offered in *Use existing key* are filtered to signing-capable asymmetric keys not yet bound to another CA.
+
+## Offline Mode
+
+Take a CA's signing key out of runtime use without deleting the CA. The certificate, chain, CRL and OCSP responder keep working — only signing operations (CSR sign, certificate issue, CA renew) are blocked.
+
+This is the standard way to protect a Root CA between rare ceremonies, while keeping its trust anchor and revocation infrastructure online.
+
+### Two modes
+
+**Password protected** — the private key stays in the UCM database, wrapped (PKCS#8) under a password you choose. To bring the CA back online, click **Restore** and re-enter the password. Fast and convenient; security depends on the password's strength and on UCM not being compromised.
+
+**File exported** — the private key is exported as a password-encrypted PEM file that downloads once. The key is then **removed from the database**. To bring the CA back online, click **Restore**, upload the file and enter the password. This is the strongest option (true air-gap) but you are fully responsible for the file: lose it and the key is unrecoverable.
+
+### Password rules
+The password follows the standard UCM password complexity policy: minimum length, mix of character classes, no trivial sequences. The same rules as user passwords.
+
+### Step by step — Take offline
+1. Open the CA detail panel
+2. Click **Take offline**
+3. Read the explanation, click **Continue**
+4. Pick a mode (*Password protected* or *File exported*)
+5. Enter the password twice
+6. Confirm. For *File exported*, the encrypted key downloads immediately — store it safely.
+
+### Step by step — Restore
+1. Open the offline CA's detail panel
+2. Click **Restore**
+3. Enter the password
+4. For *File exported*: also select the previously downloaded key file
+5. Confirm. Signing operations resume immediately.
+
+### Effect on operations
+| Operation | Online | Offline |
+|---|---|---|
+| Issue certificate | Allowed | **Blocked** |
+| Sign CSR | Allowed | **Blocked** |
+| Renew CA | Allowed | **Blocked** |
+| Renew issued certificate | Allowed | **Blocked** |
+| Serve CRL / OCSP | Allowed | Allowed (cached signature) |
+| Export certificate / chain | Allowed | Allowed |
+| Delete CA | Allowed | Allowed |
+
+> ⚠ Offline-mode passwords are **not recoverable**. Store them in your password manager / vault before confirming. Lost password = unusable CA = full re-issuance of subordinate hierarchy.
 `
   },
 
@@ -1604,12 +1647,25 @@ Configure HTTP webhooks to notify external systems on events:
 - User login, logout
 - Backup created
 
+### Authentication
+
+Optional outbound authentication (all apply in addition to the optional HMAC signature):
+
+- **None** — No auth header (public webhooks)
+- **Bearer** — Authorization: Bearer {token}
+- **Basic** — Authorization: Basic base64(username:password)
+- **API Key** — Custom header (e.g. X-Api-Key: {token})
+- **Custom** — Authorization: {scheme} {token} (e.g. auth-key VALUE)
+
+Tokens are stored encrypted and never returned in the UI.
+
 ### Creating a Webhook
 1. Click **Add Webhook**
 2. Enter the **URL** (must be HTTPS)
 3. Select the **events** to subscribe to
-4. Optionally set a **secret** for HMAC signature verification
-5. Click **Create**
+4. Choose **authentication type** and provide credentials (optional)
+5. Optionally set a **secret** for HMAC signature verification
+6. Click **Create**
 
 ### Testing
 Click **Test** to send a sample event to the webhook URL and verify it's reachable.
