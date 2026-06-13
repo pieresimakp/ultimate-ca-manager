@@ -12,4 +12,5 @@ from . import (  # noqa: F401
     cert_upload,
     cert_renew,
     cert_import,
+    lint,
 )

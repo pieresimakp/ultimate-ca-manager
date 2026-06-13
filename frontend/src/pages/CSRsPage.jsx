@@ -717,13 +717,7 @@ export default function CSRsPage() {
             )
           )}
           sortable
-          pagination={{
-            page,
-            total: currentData.length,
-            perPage,
-            onChange: setPage,
-            onPerPageChange: (v) => { setPerPage(v); setPage(1) }
-          }}
+          pagination={true}
           emptyIcon={activeTab === 'pending' ? Warning : CheckCircle}
           emptyTitle={activeTab === 'pending' ? t('csrs.noPendingCSRs') : t('csrs.noSignedCertificates')}
           emptyDescription={activeTab === 'pending' 
@@ -997,7 +991,7 @@ MIICijCCAXICAQAwRTELMAkGA1UEBhMCVVMx...
         title={t('csrs.generateCSR')}
         size="lg"
       >
-        <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-4 space-y-4">
           <p className="text-sm text-text-secondary">
             {t('csrs.generateDescription')}
           </p>

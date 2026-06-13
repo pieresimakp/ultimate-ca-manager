@@ -297,16 +297,17 @@ class TestBackupSettings:
         data = assert_success(r)
         assert 'enabled' in data
         assert 'frequency' in data
-        assert 'time' in data
         assert 'retention_days' in data
 
     def test_patch_backup_schedule(self, auth_client):
         r = patch_json(auth_client, '/api/v2/settings/backup/schedule', {
             'enabled': True,
             'frequency': 'weekly',
-            'time': '03:00',
+            'retention_days': 14,
         })
         assert_success(r)
+        # cleanup — don't leave auto-backups enabled for other tests
+        patch_json(auth_client, '/api/v2/settings/backup/schedule', {'enabled': False})
 
     def test_patch_backup_schedule_empty_body(self, auth_client):
         r = patch_json(auth_client, '/api/v2/settings/backup/schedule', {})

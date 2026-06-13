@@ -5,6 +5,15 @@ export default {
     overview: 'UCM prend en charge deux modes ACME : client ACME pour les certificats publics depuis tout CA conforme RFC 8555 (Let\'s Encrypt, ZeroSSL, Buypass, HARICA, etc.), et serveur ACME local pour l\'automatisation PKI interne avec mappage multi-CA de domaines.',
     sections: [
       {
+        title: "Renewal Information (ARI, RFC 9773)",
+        content: "Le serveur ACME local publie une ressource renewalInfo : les clients y apprennent le moment idéal pour renouveler chaque certificat.",
+        items: [
+          { label: "Fenêtre suggérée", text: "Renvoie une fenêtre début/fin centrée avant l'expiration, pour étaler les renouvellements" },
+          { label: "Révocation", text: "Un certificat révoqué renvoie une fenêtre dans le passé → les clients conformes renouvellent immédiatement" },
+          { label: "Sans authentification", text: "renewalInfo est un simple GET — ni compte ni JWS requis (RFC 9773)" },
+        ]
+      },
+      {
         title: 'Client ACME',
         items: [
           { label: 'Client', text: 'Demander des certificats depuis tout CA ACME — Let\'s Encrypt, ZeroSSL, Buypass, HARICA ou personnalisé' },
@@ -37,16 +46,6 @@ export default {
         ]
       },
       {
-        title: 'Résolution multi-CA',
-        content: 'Lorsqu\'un client ACME demande un certificat, UCM résout la CA de signature dans cet ordre :',
-        items: [
-          '1. Mappage de domaine local — correspondance exacte du domaine, puis domaine parent',
-          '2. Mappage de domaine DNS — vérifie la CA émettrice configurée pour le fournisseur DNS',
-          '3. Valeur par défaut globale — la CA définie dans la configuration du serveur ACME',
-          '4. Première CA disponible avec une clé privée',
-        ]
-      },
-      {
         title: 'Identifiants EAB (côté serveur)',
         content: 'Lorsque UCM joue le rôle de serveur ACME, le External Account Binding (RFC 8555 §7.3.4) permet d\'exiger des identifiants pré-émis avant qu\'un client puisse créer un compte :',
         items: [
@@ -73,7 +72,27 @@ export default {
           { label: 'Toujours bloqué', text: 'Les IP de métadonnées cloud (169.254.169.254, fd00:ec2::254, etc.) sont bloquées inconditionnellement' },
         ]
       },
-
+      {
+        title: 'Résolution multi-CA',
+        content: 'Lorsqu\'un client ACME demande un certificat, UCM résout la CA de signature dans cet ordre :',
+        items: [
+          '1. Mappage de domaine local — correspondance exacte du domaine, puis domaine parent',
+          '2. Mappage de domaine DNS — vérifie la CA émettrice configurée pour le fournisseur DNS',
+          '3. Valeur par défaut globale — la CA définie dans la configuration du serveur ACME',
+          '4. Première CA disponible avec une clé privée',
+        ]
+      },
+      {
+        title: 'Certificats d\'adresse IP (RFC 8738)',
+        content: 'Le serveur ACME local peut émettre des certificats pour des adresses IPv4 et IPv6, pas seulement des noms DNS. Utilisez le type d\'identifiant « ip » dans la commande.',
+        items: [
+          { label: 'Identifiant', text: 'Commande avec { "type": "ip", "value": "192.0.2.10" } (IPv4) ou un littéral IPv6 comme 2001:db8::1' },
+          { label: 'Défis', text: 'Seuls HTTP-01 et TLS-ALPN-01 sont proposés — DNS-01 est interdit pour les identifiants IP selon RFC 8738' },
+          { label: 'SNI TLS-ALPN-01', text: 'La validation utilise la forme reverse-DNS (in-addr.arpa / ip6.arpa) comme nom d\'hôte SNI' },
+          { label: 'SAN émis', text: 'Le certificat porte un SAN iPAddress ; les commandes mixtes DNS + IP sont prises en charge' },
+          { label: 'IP internes', text: 'Les adresses RFC1918 et loopback se valident nativement — le mode de déploiement principal de UCM' },
+        ]
+      }
     ],
     tips: [
       'URL du répertoire ACME : https://votre-serveur:port/acme/directory',
@@ -282,6 +301,40 @@ acme.sh --issue \\
 \`\`\`
 
 > ⚠ Pour ACME interne, les clients doivent faire confiance à la CA UCM. Installez le certificat de la CA racine dans le magasin de confiance du client.
+## Certificats d'adresse IP (RFC 8738)
+
+Le serveur ACME local peut émettre des certificats pour des **adresses IP** (IPv4 et IPv6), pas seulement des noms DNS. Utile pour les services internes, les équipements et les hôtes adressés directement par IP.
+
+### Commander un certificat IP
+Utilisez le type d'identifiant \`ip\` dans la commande ACME :
+\`\`\`json
+{
+  "identifiers": [
+    { "type": "ip", "value": "192.0.2.10" },
+    { "type": "ip", "value": "2001:db8::1" }
+  ]
+}
+\`\`\`
+Les commandes mixtes DNS + IP sont également prises en charge.
+
+### Validation
+- **HTTP-01** et **TLS-ALPN-01** sont les seuls défis proposés pour les identifiants IP. **DNS-01 est interdit** pour les IP par la RFC 8738.
+- **HTTP-01** se connecte directement à l'IP (les littéraux IPv6 sont entre crochets, ex. \`http://[2001:db8::1]/...\`).
+- **TLS-ALPN-01** utilise la forme reverse-DNS de l'IP (\`in-addr.arpa\` / \`ip6.arpa\`) comme nom d'hôte SNI.
+
+### Certificat émis
+Le certificat signé contient une entrée SubjectAltName **iPAddress** pour chaque IP validée.
+
+> 💡 Les adresses internes (RFC1918, loopback) se valident nativement — le mode de déploiement principal de UCM. Les IP de métadonnées cloud restent bloquées.
+
+## Renewal Information (ARI, RFC 9773)
+
+Le serveur ACME local annonce \`renewalInfo\` dans son directory et sert une **fenêtre de renouvellement suggérée** par certificat.
+
+- Fenêtre centrée avant l'expiration → renouvellements étalés dans le temps
+- Certificat révoqué → fenêtre dans le passé (renouveler tout de suite)
+- GET non authentifié sur \`/acme/renewalInfo/<certID>\`
+
 `
   }
 }

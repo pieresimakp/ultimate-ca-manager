@@ -214,62 +214,71 @@ def delete_backup(filename):
 @bp.route('/api/v2/settings/backup/schedule', methods=['GET'])
 @require_auth(['read:settings'])
 def get_backup_schedule():
-    """Get backup schedule configuration"""
-    return success_response(
-        data={
-            'enabled': False,
-            'frequency': 'daily',  # daily, weekly, monthly
-            'time': '02:00',
-            'retention_days': 30,
-            'include_private_keys': False,
-            'remote_storage': {
-                'enabled': False,
-                'type': None,  # s3, ftp, sftp
-                'config': {}
-            }
-        }
-    )
+    """Get backup schedule configuration (derived from General settings)."""
+    from services.backup.schedule import get_schedule
+    return success_response(data=get_schedule())
 
 
 @bp.route('/api/v2/settings/backup/schedule', methods=['PATCH'])
 @require_auth(['admin:system'])
 def update_backup_schedule():
-    """Update backup schedule"""
-    data = request.json
+    """Update backup schedule.
 
+    Writes the same General-settings keys the UI uses, so both surfaces stay
+    consistent: enabled→auto_backup_enabled, frequency→backup_frequency,
+    retention_days→backup_retention_days.
+    """
+    from . import set_config
+    from services.backup.schedule import get_schedule, _VALID_FREQUENCIES
+    data = request.json
     if not data:
         return error_response('No data provided', 400)
 
-    # TODO: Validate and update schedule
-    # - Validate frequency, time format
-    # - Update cron job
-    # - Save to database
+    if 'enabled' in data:
+        set_config('auto_backup_enabled', 'true' if data['enabled'] else 'false')
+    if 'frequency' in data:
+        if data['frequency'] not in _VALID_FREQUENCIES:
+            return error_response(
+                f"frequency must be one of {', '.join(_VALID_FREQUENCIES)}", 400)
+        set_config('backup_frequency', data['frequency'])
+    if 'retention_days' in data:
+        try:
+            rd = int(data['retention_days'])
+        except (ValueError, TypeError):
+            return error_response('retention_days must be an integer', 400)
+        if rd < 1 or rd > 3650:
+            return error_response('retention_days must be between 1 and 3650', 400)
+        set_config('backup_retention_days', str(rd))
 
-    return success_response(
-        data=data,
-        message='Backup schedule updated successfully'
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to update backup schedule: {e}")
+        return error_response('Failed to persist schedule', 500)
+
+    AuditService.log_action(
+        action='backup_schedule_updated', resource_type='system',
+        details="Backup schedule updated", success=True,
     )
+    return success_response(data=get_schedule(),
+                            message='Backup schedule updated successfully')
 
 
 @bp.route('/api/v2/settings/backup/history', methods=['GET'])
 @require_auth(['read:settings'])
 def get_backup_history():
-    """Get backup history"""
+    """Get backup history (actual backup files on disk)"""
+    from services.backup.schedule import list_backups
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
 
-    # TODO: Get backup history from database
+    all_backups = list_backups()
+    total = len(all_backups)
+    start = (page - 1) * per_page
+    items = all_backups[start:start + per_page]
 
     return success_response(
-        data=[
-            {
-                'id': 1,
-                'filename': 'ucm_backup_20260119.tar.gz',
-                'size': 1024000,
-                'created_at': '2026-01-19T02:00:00Z',
-                'type': 'scheduled',
-                'status': 'completed'
-            }
-        ],
-        meta={'total': 1, 'page': page, 'per_page': per_page}
+        data=items,
+        meta={'total': total, 'page': page, 'per_page': per_page}
     )

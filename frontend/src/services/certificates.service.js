@@ -85,5 +85,13 @@ export const certificatesService = {
 
   async submitToCT(certId) {
     return apiClient.post(`/certificates/${certId}/submit-ct`)
+  },
+
+  async getLintStatus() {
+    return apiClient.get('/certificates/lint/status')
+  },
+
+  async lint(certId, profile = 'rfc5280') {
+    return apiClient.get(`/certificates/${certId}/lint?profile=${profile}`)
   }
 }

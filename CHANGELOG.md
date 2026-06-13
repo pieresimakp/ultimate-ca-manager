@@ -7,7 +7,162 @@ Starting with v2.48, UCM uses Major.Build versioning (e.g., 2.48, 2.49). Earlier
 
 ---
 
+
 ## [Unreleased]
+
+## [2.170] - 2026-06-13
+
+### Added
+- **Certificate conformance linting** — a per-certificate "Lint" action runs the certificate through standards linters (pkilint, plus zlint when available) and shows structured findings, with selectable RFC 5280 and CA/Browser Forum profiles. Informative only; pkilint is an optional dependency and the feature degrades gracefully when it is absent.
+- **ACME Renewal Information (ARI)** — the ACME server now advertises and serves a `renewalInfo` resource (RFC 9773), returning a per-certificate suggested renewal window so clients can spread renewals and react immediately to revocation.
+- **Prometheus metrics** — opt-in, bearer-gated `/metrics` endpoint exposing certificate, CA, scheduler, webhook and ACME counters in Prometheus exposition format, configurable from Settings › General (generate/rotate/disable the token).
+- **Webhook delivery history** — per-endpoint delivery log with status, attempts and manual retry, backed by a durable async delivery queue with exponential backoff.
+- **Scheduler admin view** — Settings › System now lists background tasks with their status, last run and a run-now action.
+- **Scheduled backups** — automatic encrypted backups on a configurable cadence with retention.
+- **In-app help** — contextual help panels and guides now cover the new features (linting, ARI, metrics, webhook delivery history, scheduler, scheduled backups) in every supported language.
+
+### Fixed
+- **Pagination** — list pages that paginated client-side (Users, Templates, SCEP, SSH CAs, CRL/OCSP, CSRs, ACME accounts, Discovery) now correctly page through their rows instead of rendering the full list on one page.
+- **Layout** — list tables and toolbars no longer overflow into a horizontal scrollbar in split view, modals no longer show a double scrollbar, and the CA "columns" view wraps to fill the width instead of scrolling sideways.
+- **Lifecycle events** — issuing, renewing or revoking a certificate (or creating/updating a CA) no longer risks an intermittent error when a webhook endpoint is configured, which could previously surface as a 500.
+
+### Changed
+- **Notifications** — email and WebSocket notifications are now fanned out through an in-process event bus, removing duplicated call-sites.
+
+## [2.169] - 2026-06-12
+
+### Added
+- **Syslog source field** — remote syslog messages now populate the RFC 5424 HOSTNAME field from the configured System Name (falling back to the machine hostname), so audit events are attributable in log aggregators (#135).
+
+### Fixed
+- **LDAP required groups** — the required-groups restriction now saves correctly and is enforced at login; group matching is case-insensitive and previously stored values are repaired automatically (#133).
+- **ACME IP certificates** — IP-only orders now honor the configured default issuing CA instead of falling back to the first available CA (#134).
+
+### Security
+- **ACME server** — settled challenges (valid/invalid) are no longer re-validated when re-submitted, and key rollover now rejects a key already bound to another account (keyConflict, RFC 8555).
+- **Syslog** — structured-data values and message text are escaped/sanitized (RFC 5424), preventing log injection via certificate or user fields.
+- **Email** — subjects and recipients are stripped of CR/LF to prevent SMTP header injection.
+- **DNS providers** — provider error logs no longer leak API tokens that are transmitted as URL parameters.
+- **Filesystem** — private-key and database-backup directories are tightened to owner-only permissions at startup.
+- **Audit** — security-alert and audit events now record the real client IP when behind a trusted reverse proxy.
+
+### Changed
+- **Outbound services** — webhook, email, and Microsoft CA connectors hardened against partial failures, socket leaks, and logging errors.
+
+## [2.168] - 2026-06-11
+
+### Fixed
+- **User deletion** — the delete endpoint now permanently removes the account (with full FK cleanup: sessions, WebAuthn, mTLS certs, SSO sessions, API keys, group memberships) instead of only disabling it. Blocks deletion when pending approval requests exist; audit history is preserved (#132).
+
+## [2.167] - 2026-06-10
+
+### Added
+- **ACME IP address certificates (RFC 8738)** — the local ACME server can issue certificates for IPv4 and IPv6 identifiers. Only HTTP-01 and TLS-ALPN-01 are offered (DNS-01 is excluded per spec); TLS-ALPN-01 uses the reverse-DNS form as SNI; the issued certificate carries an `iPAddress` SAN; mixed DNS + IP orders are supported (#131).
+- **LDAP required groups & disabled-account handling** — restrict SSO/LDAP login to members of configured required groups, reject disabled accounts, plus login hardening (#129).
+
+### Fixed
+- **ACME HTTP-01 for IPv6** — bracket IPv6 literals in challenge URLs per RFC 3986 (previously `InvalidURL`).
+- **Rate limiter** — exempt RFC1918/loopback/link-local peers from the per-endpoint login limits, matching the global LAN-trust bypass; brute-force protection remains enforced via account lockout.
+- **In-app help** — corrected ACME help section ordering across all locales and documented IP-certificate support.
+
+### Changed
+- **CI** — GitHub Actions bumped to Node 24 runtimes.
+
+## [2.166] - 2026-06-10
+
+### Fixed
+- **ACME ToS XSS** — HTML-escape terms of service content before rendering in React (#125).
+- **Password policy bypass** — removed hardcoded `len < 8` check that could be bypassed with custom policy; policy enforcement now uses the full `validate_password()` result.
+- **Migration transaction** — explicit `rollback()` after FK disable failure prevents `InFailedSqlTransaction` poison in psycopg2 connections.
+- **Netcup DNS** — multi-part TLD support in `_split_domain_and_host` (e.g. `co.uk`).
+- **Policy config cache** — `@lru_cache` on policy config to avoid repeated DB reads; removed dead code from legacy password checks.
+- **ACME EAB** — proper notes field on EAB credentials, persisted in DB.
+- **Auto-renewal** — fixed source validation (whitelist check) preventing valid sources from being rejected.
+- **ExportDropdown** — hardcoded English strings replaced with `t()` interpolation (all 9 locales synced).
+
+## [2.165] - 2026-06-09
+
+### Added
+- **ACME DNS-01 auto-poll** — after TXT record creation, automatically wait for DNS propagation (30s), submit challenges, poll ACME status every 5s, and auto-finalize when order is ready (#127).
+
+### Fixed
+- **Database migration** — rollback connection after FK disable failure to prevent `InFailedSqlTransaction` when non-superuser runs SQLite → PostgreSQL migration (#126).
+- **SSH CA setup script** — remove backslash-quotes from `CA_PUB_KEY` template that caused bash to execute the key as a command (`not found`) (#125).
+- **Password complexity error** — `validate_password()` returns `List[dict]` but callers were passing the raw dict to `error_response()`, displaying `[object Object]` in the UI (#128).
+- **SSH CA setup** — strip newlines from public key before embedding in shell script.
+- **ACME DNS** — Netcup read-modify-write + nested subdomain resolution; Cloudflare scoped token `test_connection` fix.
+
+## [2.164] - 2026-06-08
+
+### Fixed
+- **Netcup DNS** — read-modify-write on `create_txt_record` (no more zone overwrite), nested subdomain resolution (`_split_domain_and_host`), deletion uses internal record IDs.
+- **Cloudflare DNS** — `test_connection()` uses zone-scoped `/zones?per_page=1` instead of `/user/tokens/verify` (fixes false-positive with scoped API tokens).
+
+## [2.163] - 2026-06-07
+
+### Added
+- **ACME Terms of Service** (#120 point 4) — `GET /acme/terms` public endpoint returns HTML-rendered ToS (RFC 8555 §7.1.1). Settings API (`GET/PATCH /api/v2/acme/settings`) manages title + body JSON. Frontend ConfigTab has scrollable preview card + edit modal with live preview. Migration 039 seeds default ToS on fresh installs.
+
+### Fixed
+- **ACME /acme/terms endpoint** — returns raw `text/html` instead of JSON wrapper. No more escaped characters in HTML.
+- **ACME directory** — `meta.termsOfService` URL points to `/acme/terms` for ACME clients.
+
+## [2.162] - 2026-06-06
+
+### Fixed
+- ACME domain form (#123) — Radix Select fields (DNS provider, issuing CA) now display correctly instead of appearing blank. Values kept as strings in state (Radix requirement), converted to integers only on submit.
+- ACME domain form — initial state for `dns_provider_id` now safely handles undefined values via optional chaining.
+- Policies form — Radix Select values for CA and approval group now display correctly (strings for Radix compat).
+- Duplicate CHANGELOG entries in 2.161 cleaned up.
+
+## [2.161] - 2026-06-05
+
+### Added
+- **CI semver normalization** — RC tags (`2.161-rc1`) are auto-normalized to valid semver (`2.161.0-rc1`) for `npm ci` in build workflows.
+- **EAB credential notes** (#120) — free-form notes column on `acme_eab_credentials` table (migration 038), editable in ACME EAB tab.
+
+### Changed
+- **CI pipeline hardened** — `npm ci` now works reliably on RC tags; lockfile integrity preserved (no more blanket `sed` corruption).
+
+### Fixed
+- Password policy centralization (#121) — all validation moved to `security/password_policy.py`, enforced across login, password change, account creation, and force-change flows. Admin bypass retained.
+- Discovery profiles (#122) — corrected field name mismatches (`schedule_enabled`, `schedule_interval_minutes`) in `DiscoveryPage.jsx` and `ProfileDetailPanel.jsx`; profile list now refreshes after create/update.
+- All `db.session.commit()` calls wrapped in `safe_commit()` — prevents 500 crashes from IntegrityError.
+- GitHub code scanning alerts: `react-router` → `6.30.4`, batch-updated Python dependencies.
+- Frontend quality check: removed React 18 false-positive hook provider tests (479 tests clean).
+
+## [2.160] - 2026-06-04
+
+### Fixed
+- ACME challenge responses no longer fail with an internal error when auditing an authorization identifier stored as JSON.
+- Hardened ACME authorization identifier handling across challenge validation, authorization responses, wildcard detection, and ACME admin views.
+
+## [2.159] - 2026-06-03
+
+### Added
+- **CA-template pinning** (#118) — pin templates to specific CAs for quick access in certificate issuance form. Pinned templates appear with pushpin icon at top of dropdown, with option to show all templates. Backend API endpoints for pin/unpin operations, migration 037 adds `ca_template_pins` table.
+- Manage Pins button in CA floating window action bar for quick access to template pinning modal.
+
+### Fixed
+- Template pinning UI: replaced emoji with PushPin icon from phosphor-icons for consistency.
+- i18n interpolation in "Show all X templates" button now correctly displays template count.
+- FloatingDetailWindow: fixed canWrite/canDelete props passing to CADetails component, preventing ReferenceError.
+- CA details floating window now properly displays action buttons (Export, Manage Pins, Take Offline, Delete).
+
+### Security
+- Updated frontend dependencies to fix security vulnerabilities: engine.io-client (moderate), picomatch (high), brace-expansion (moderate), @vitest/coverage-v8 (critical).
+
+## [2.158] - 2026-06-03
+
+### Fixed
+- SSH certificate issuance: cast TTL values to int to prevent str/int comparison error (#119)
+- SSH setup script: fix import path after module reorganization (#119)
+- mTLS certificate generation: use correct CertificateService method signature (#119)
+
+## [2.157] - 2026-05-13
+
+### Fixed
+- Webhook form: empty `auth_username` and `auth_header_name` fields now sent as `null` instead of `""`, preventing 400 validation errors when the field is optional for the selected auth type (#117).
 
 ## [2.156] - 2026-05-12
 

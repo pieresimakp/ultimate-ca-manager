@@ -5,6 +5,15 @@ export default {
     overview: 'UCM 支持两种 ACME 模式：ACME 客户端用于从任何符合 RFC 8555 的 CA（Let\'s Encrypt、ZeroSSL、Buypass、HARICA 等）获取公共证书；本地 ACME 服务器用于内部 PKI 自动化，支持多 CA 域名映射。',
     sections: [
       {
+        title: "Renewal Information (ARI, RFC 9773)",
+        content: "本地 ACME 服务器公布 renewalInfo 资源，使客户端了解每个证书的理想续期时机。",
+        items: [
+          { label: "建议窗口", text: "返回一个以到期前为中心的开始/结束窗口，使续期错峰分布" },
+          { label: "吊销", text: "已吊销证书返回过去的窗口 → 合规客户端立即续期" },
+          { label: "无需认证", text: "renewalInfo 是普通 GET——无需账户或 JWS（RFC 9773）" },
+        ]
+      },
+      {
         title: 'ACME 客户端',
         items: [
           { label: '客户端', text: '从任何 ACME CA 请求证书——Let\'s Encrypt、ZeroSSL、Buypass、HARICA 或自定义' },
@@ -37,16 +46,6 @@ export default {
         ]
       },
       {
-        title: '多 CA 解析',
-        content: '当 ACME 客户端请求证书时，UCM 按以下顺序解析签名 CA：',
-        items: [
-          '1. 本地域名映射——精确域名匹配，然后父域名',
-          '2. DNS 域名映射——检查为 DNS 提供商配置的签发 CA',
-          '3. 全局默认——ACME 服务器配置中设置的 CA',
-          '4. 第一个拥有私钥的可用 CA',
-        ]
-      },
-      {
         title: 'EAB 凭据(服务器端)',
         content: '当 UCM 作为 ACME 服务器时,External Account Binding(RFC 8555 §7.3.4)允许在客户端注册账户之前要求预先发行的凭据:',
         items: [
@@ -73,7 +72,27 @@ export default {
           { label: '始终阻止', text: '云元数据 IP(169.254.169.254、fd00:ec2::254 等)无条件阻止' },
         ]
       },
-
+      {
+        title: '多 CA 解析',
+        content: '当 ACME 客户端请求证书时，UCM 按以下顺序解析签名 CA：',
+        items: [
+          '1. 本地域名映射——精确域名匹配，然后父域名',
+          '2. DNS 域名映射——检查为 DNS 提供商配置的签发 CA',
+          '3. 全局默认——ACME 服务器配置中设置的 CA',
+          '4. 第一个拥有私钥的可用 CA',
+        ]
+      },
+      {
+        title: 'IP 地址证书 (RFC 8738)',
+        content: '本地 ACME 服务器不仅可以为 DNS 名称签发证书，还可以为 IPv4 和 IPv6 地址签发证书。在订单中使用标识符类型“ip”。',
+        items: [
+          { label: '标识符', text: '使用 { "type": "ip", "value": "192.0.2.10" }（IPv4）或像 2001:db8::1 这样的 IPv6 字面量下单' },
+          { label: '质询', text: '仅提供 HTTP-01 和 TLS-ALPN-01 — 根据 RFC 8738，IP 标识符禁止使用 DNS-01' },
+          { label: 'TLS-ALPN-01 SNI', text: '验证使用反向 DNS 形式（in-addr.arpa / ip6.arpa）作为 SNI 主机名' },
+          { label: '签发的 SAN', text: '证书包含 iPAddress SAN；支持 DNS + IP 混合订单' },
+          { label: '内部 IP', text: 'RFC1918 和环回地址开箱即可验证 — UCM 的主要部署模式' },
+        ]
+      }
     ],
     tips: [
       'ACME 目录 URL：https://your-server:port/acme/directory',
@@ -282,6 +301,40 @@ acme.sh --issue \\
 \`\`\`
 
 > ⚠ 对于内部 ACME，客户端必须信任 UCM CA。在客户端的信任存储中安装根 CA 证书。
+## IP 地址证书 (RFC 8738)
+
+本地 ACME 服务器不仅可以为 DNS 名称签发证书，还可以为 **IP 地址**（IPv4 和 IPv6）签发证书。适用于内部服务、设备以及直接通过 IP 寻址的主机。
+
+### 订购 IP 证书
+在 ACME 订单中使用标识符类型 \`ip\`：
+\`\`\`json
+{
+  "identifiers": [
+    { "type": "ip", "value": "192.0.2.10" },
+    { "type": "ip", "value": "2001:db8::1" }
+  ]
+}
+\`\`\`
+也支持 DNS + IP 混合订单。
+
+### 验证
+- 对于 IP 标识符，仅提供 **HTTP-01** 和 **TLS-ALPN-01** 质询。根据 RFC 8738，IP **禁止使用 DNS-01**。
+- **HTTP-01** 直接连接到 IP（IPv6 字面量需加方括号，例如 \`http://[2001:db8::1]/...\`）。
+- **TLS-ALPN-01** 使用 IP 的反向 DNS 形式（\`in-addr.arpa\` / \`ip6.arpa\`）作为 SNI 主机名。
+
+### 签发的证书
+签名后的证书为每个已验证的 IP 包含一个 **iPAddress** SubjectAltName 条目。
+
+> 💡 内部地址（RFC1918、环回）开箱即可验证 — UCM 的主要部署模式。云元数据 IP 仍被阻止。
+
+## Renewal Information (ARI, RFC 9773)
+
+本地 ACME 服务器在其 directory 中公布 \`renewalInfo\`，并为每个证书提供**建议续期窗口**。
+
+- 窗口以到期前为中心 → 续期随时间错峰
+- 已吊销证书 → 过去的窗口（立即续期）
+- 对 \`/acme/renewalInfo/<certID>\` 的无认证 GET
+
 `
   }
 }

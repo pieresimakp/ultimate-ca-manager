@@ -5,6 +5,16 @@ export default {
     overview: 'すべてのX.509証明書の一元管理。CAから新しい証明書を発行し、既存の証明書をインポートし、有効期限を追跡し、更新と失効を処理します。',
     sections: [
       {
+        title: "適合性検査",
+        content: "証明書詳細の「検査」操作は、標準リンターで証明書を検査し結果を表示します。参考情報のみ — 発行をブロックすることはありません。",
+        items: [
+          { label: "プロファイル", text: "RFC 5280（常に該当）および CA/Browser Forum ベースライン要件（TLS サーバー証明書）" },
+          { label: "重大度", text: "結果は fatal、error、warning、notice、info に分類されます" },
+          { label: "エンジン", text: "pkilint（および zlint バイナリがあれば使用）— 任意のサーバー依存関係" },
+          { label: "内部 PKI", text: "CA/Browser Forum のルールは公開証明書向けです。内部 PKI では該当しない結果が出ることがあります" },
+        ]
+      },
+      {
         title: '証明書ステータス',
         definitions: [
           { term: '有効', description: '有効期間内で失効していない' },
@@ -154,6 +164,15 @@ export default {
 - **CAフィルター** — 特定のCAからの証明書を表示
 - **テキスト検索** — CN、シリアル番号、またはSANで検索
 - **ソート** — 名前、有効期限、作成日、ステータス別
+## 適合性検査
+
+**検査**操作（証明書詳細）は X.509 標準への適合性を確認します。参考情報のみ。
+
+- **RFC 5280** — IETF の X.509 プロファイル、常に該当
+- **CA/Browser Forum** — 公開 TLS 証明書向けベースライン要件（内部 PKI ではノイズが出ます）
+- 重大度：fatal / error / warning / notice / info
+- エンジン：pkilint（存在すれば zlint も）— 任意のサーバー依存、無い場合は穏やかに機能低下
+
 `
   }
 }

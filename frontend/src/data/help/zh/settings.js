@@ -5,6 +5,42 @@ export default {
     overview: '配置 UCM 系统的各个方面。设置按类别组织：通用、外观、电子邮件、安全、SSO、备份、审计、数据库、HTTPS、更新和 Webhook。',
     sections: [
       {
+        title: "Prometheus 指标",
+        content: "可选的 /metrics 端点，以 Prometheus 格式公开计数器（证书、CA、调度器、Webhook、ACME）。",
+        items: [
+          { label: "启用", text: "在设置 › 常规中设置指标令牌；未设置令牌时端点返回 404（禁用）" },
+          { label: "认证", text: "使用 Authorization: Bearer <令牌> 抓取" },
+          { label: "计数器", text: "ucm_certificates、ucm_certificate_authorities、ucm_scheduler_task_*、ucm_webhook_deliveries、ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Webhook 投递历史",
+        content: "每个 Webhook 端点都保留一份投递日志，包含状态、尝试次数和手动重试。",
+        items: [
+          { label: "状态", text: "pending / delivered / failed，附带最后的 HTTP 代码和错误" },
+          { label: "重试", text: "手动将失败或已投递的事件重新入队" },
+          { label: "异步", text: "投递来自持久队列，采用指数退避（最多 5 次尝试）" },
+        ]
+      },
+      {
+        title: "调度器视图",
+        content: "设置 › 系统列出后台任务及其状态和上次运行。",
+        items: [
+          { label: "任务", text: "到期检查、CRL 刷新、Webhook 投递、计划备份、自动续期等" },
+          { label: "立即运行", text: "按需触发任何任务" },
+          { label: "可见性", text: "每个任务的上次运行、上次耗时和失败次数" },
+        ]
+      },
+      {
+        title: "计划备份",
+        content: "按可配置频率对数据库进行自动加密备份，并带有保留策略。",
+        items: [
+          { label: "频率", text: "每日 / 每周 / 每月" },
+          { label: "保留", text: "保留最近 N 个备份；较旧的会被清理" },
+          { label: "加密", text: "备份使用配置的备份密码加密" },
+        ]
+      },
+      {
         title: '类别',
         items: [
           { label: '通用', text: '实例名称、主机名和全系统默认值' },
@@ -248,6 +284,38 @@ UCM 支持两种数据库后端：
 
 ### 测试
 点击**测试**向 Webhook URL 发送示例事件并验证其可达性。
+## Prometheus 指标
+
+可选、令牌保护的 **\`/metrics\`** 端点。
+
+- 通过设置指标令牌启用（设置 › 常规）；无令牌 → 404
+- 使用 \`Authorization: Bearer <令牌>\` 标头抓取
+- 公开 \`ucm_certificates\`、\`ucm_certificate_authorities\`、\`ucm_scheduler_task_*\`、\`ucm_webhook_deliveries\`、\`ucm_acme_*\`
+
+## Webhook 投递历史
+
+在某个 Webhook 上打开历史（时钟图标）查看其投递。
+
+- **pending / delivered / failed** 状态，附最后的 HTTP 代码和错误
+- 手动**重试**投递
+- 持久队列，采用指数退避（最多 5 次尝试）
+
+## 调度器视图
+
+设置 › 系统展示后台任务。
+
+- 任务列表，含**状态**、**上次运行**、**耗时**和**失败次数**
+- 对任意任务**立即运行**
+- 涵盖到期、CRL、Webhook 投递、备份、自动续期……
+
+## 计划备份
+
+设置 › 备份可启用自动备份。
+
+- **每日 / 每周 / 每月**频率
+- **保留**：保留最近 N 个，清理较旧的
+- 使用备份密码**加密**备份
+
 `
   }
 }

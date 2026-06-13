@@ -3,7 +3,7 @@ from flask import request
 from auth.unified import require_auth
 from utils.response import success_response, error_response
 from models.sso import SSOProvider
-from .helpers import _parse_json_field, _resolve_role_from_mapping, _resolve_role, _check_ldap_lockout, _clear_ldap_failed_attempts, _decrypt_ldap_password, _build_ldap_tls
+from .helpers import _parse_json_field, _parse_group_list, _resolve_role_from_mapping, _resolve_role, _check_ldap_lockout, _clear_ldap_failed_attempts, _decrypt_ldap_password, _build_ldap_tls
 import logging
 
 logger = logging.getLogger(__name__)
@@ -109,6 +109,13 @@ def test_mapping(provider_id):
         # Resolve role using same logic as real login
         resolved_role = _resolve_role(provider, {'groups': groups})
 
+        # Evaluate required groups (default-deny) like real login
+        required_groups = _parse_group_list(provider.ldap_required_groups)
+        access_allowed = True
+        if required_groups:
+            user_groups_lower = {g.lower() for g in groups}
+            access_allowed = any(g.lower() in user_groups_lower for g in required_groups)
+
         return success_response(data={
             'found': True,
             'user_dn': user_dn,
@@ -117,7 +124,9 @@ def test_mapping(provider_id):
             'groups': groups,
             'resolved_role': resolved_role,
             'role_mapping': _parse_json_field(provider.role_mapping) or {},
-            'default_role': provider.default_role
+            'default_role': provider.default_role,
+            'required_groups': required_groups,
+            'access_allowed': access_allowed
         })
 
     except ImportError:

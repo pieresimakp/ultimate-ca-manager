@@ -5,6 +5,42 @@ export default {
     overview: 'Configurez tous les aspects du système UCM. Les paramètres sont organisés par catégorie : général, apparence, e-mail, sécurité, SSO, sauvegarde, audit, base de données, HTTPS, mises à jour et webhooks.',
     sections: [
       {
+        title: "Métriques Prometheus",
+        content: "Endpoint /metrics optionnel exposant des compteurs (certificats, CA, planificateur, webhooks, ACME) au format Prometheus.",
+        items: [
+          { label: "Activation", text: "Définissez un jeton de métriques dans Paramètres › Général ; sans jeton, l'endpoint renvoie 404 (désactivé)" },
+          { label: "Authentification", text: "Scrapez avec Authorization: Bearer <jeton>" },
+          { label: "Compteurs", text: "ucm_certificates, ucm_certificate_authorities, ucm_scheduler_task_*, ucm_webhook_deliveries, ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Historique de livraison des webhooks",
+        content: "Chaque endpoint webhook conserve un journal de livraison avec statut, tentatives et nouvelle tentative manuelle.",
+        items: [
+          { label: "Statuts", text: "pending / delivered / failed, avec le dernier code HTTP et l'erreur" },
+          { label: "Réessayer", text: "Remettre manuellement en file un événement échoué ou déjà livré" },
+          { label: "Asynchrone", text: "Les livraisons partent d'une file durable avec backoff exponentiel (jusqu'à 5 tentatives)" },
+        ]
+      },
+      {
+        title: "Vue du planificateur",
+        content: "Paramètres › Système liste les tâches d'arrière-plan avec leur statut et leur dernière exécution.",
+        items: [
+          { label: "Tâches", text: "Vérifications d'expiration, rafraîchissement CRL, livraison webhooks, sauvegardes planifiées, renouvellement auto, etc." },
+          { label: "Exécuter", text: "Déclencher n'importe quelle tâche à la demande" },
+          { label: "Visibilité", text: "Dernière exécution, dernière durée et nombre d'échecs par tâche" },
+        ]
+      },
+      {
+        title: "Sauvegardes planifiées",
+        content: "Sauvegardes chiffrées et automatiques de la base de données, à cadence configurable et avec rétention.",
+        items: [
+          { label: "Cadence", text: "Quotidienne / hebdomadaire / mensuelle" },
+          { label: "Rétention", text: "Conserver les N sauvegardes les plus récentes ; les plus anciennes sont purgées" },
+          { label: "Chiffrement", text: "Les sauvegardes sont chiffrées avec le mot de passe de sauvegarde configuré" },
+        ]
+      },
+      {
         title: 'Catégories',
         items: [
           { label: 'Général', text: 'Nom de l\'instance, nom d\'hôte et valeurs par défaut à l\'échelle du système' },
@@ -247,6 +283,38 @@ Les tokens sont stockés chiffrés et jamais renvoyés dans l'UI.
 
 ### Test
 Cliquez sur **Tester** pour envoyer un événement exemple à l'URL du webhook et vérifier qu'il est accessible.
+## Métriques Prometheus
+
+Endpoint **\`/metrics\`** opt-in et protégé par jeton.
+
+- Activez-le en définissant un jeton de métriques (Paramètres › Général) ; sans jeton → 404
+- Scrapez avec l'en-tête \`Authorization: Bearer <jeton>\`
+- Expose \`ucm_certificates\`, \`ucm_certificate_authorities\`, \`ucm_scheduler_task_*\`, \`ucm_webhook_deliveries\`, \`ucm_acme_*\`
+
+## Historique de livraison des webhooks
+
+Ouvrez l'historique (icône horloge) sur un webhook pour voir ses livraisons.
+
+- Statuts **pending / delivered / failed** avec dernier code HTTP et erreur
+- **Réessayer** une livraison manuellement
+- File durable avec backoff exponentiel (jusqu'à 5 tentatives)
+
+## Vue du planificateur
+
+Paramètres › Système expose les tâches d'arrière-plan.
+
+- Liste des tâches avec **statut**, **dernière exécution**, **durée** et **échecs**
+- **Exécuter maintenant** sur n'importe quelle tâche
+- Couvre expiration, CRL, livraison webhooks, sauvegardes, renouvellement auto…
+
+## Sauvegardes planifiées
+
+Paramètres › Sauvegarde permet des sauvegardes automatiques.
+
+- Cadence **quotidienne / hebdomadaire / mensuelle**
+- **Rétention** : conserve les N plus récentes, purge les anciennes
+- Sauvegardes **chiffrées** avec le mot de passe de sauvegarde
+
 `
   }
 }

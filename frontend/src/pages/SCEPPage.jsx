@@ -451,13 +451,7 @@ export default function SCEPPage() {
             }
             selectedId={selectedRequest?.id}
             onRowClick={setSelectedRequest}
-            pagination={{
-              page,
-              total: requests.length,
-              perPage,
-              onChange: setPage,
-              onPerPageChange: (v) => { setPerPage(v); setPage(1) }
-            }}
+            pagination={true}
             emptyState={{
               icon: Robot,
               title: t('scep.noRequests'),

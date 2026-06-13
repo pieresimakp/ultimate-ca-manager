@@ -5,6 +5,16 @@ export default {
     overview: 'Gestión centralizada de todos los certificados X.509. Emita nuevos certificados desde sus CA, importe certificados existentes, controle las fechas de expiración y gestione las renovaciones y revocaciones.',
     sections: [
       {
+        title: "Análisis de conformidad",
+        content: "La acción « Analizar » en el detalle de un certificado lo pasa por analizadores de estándares y muestra los hallazgos. Solo informativo — nunca bloquea la emisión.",
+        items: [
+          { label: "Perfiles", text: "RFC 5280 (siempre relevante) y CA/Browser Forum Baseline Requirements (certificados TLS de servidor)" },
+          { label: "Severidades", text: "Los hallazgos se clasifican: fatal, error, warning, notice, info" },
+          { label: "Motor", text: "Impulsado por pkilint (y zlint si su binario está presente) — dependencia opcional del servidor" },
+          { label: "PKI interna", text: "Las reglas de CA/Browser Forum apuntan a certificados públicos; espere hallazgos no aplicables en una PKI interna" },
+        ]
+      },
+      {
         title: 'Estado del certificado',
         definitions: [
           { term: 'Válido', description: 'Dentro del período de validez y no revocado' },
@@ -154,6 +164,15 @@ Seleccione dos certificados y haga clic en **Comparar** para ver una comparació
 - **Filtro por CA** — Mostrar certificados de una CA específica
 - **Búsqueda de texto** — Buscar por CN, número de serie o SAN
 - **Ordenación** — Por nombre, fecha de expiración, fecha de creación, estado
+## Análisis de conformidad
+
+La acción **Analizar** (detalle del certificado) comprueba la conformidad con los estándares X.509. Solo informativo.
+
+- **RFC 5280** — perfil X.509 del IETF, siempre relevante
+- **CA/Browser Forum** — Baseline Requirements para certificados TLS públicos (ruido esperado en PKI interna)
+- Severidades: fatal / error / warning / notice / info
+- Motor: pkilint (+ zlint si está presente) — dependencia opcional del servidor, degradación elegante si falta
+
 `
   }
 }

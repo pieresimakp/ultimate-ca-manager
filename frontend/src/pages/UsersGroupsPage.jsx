@@ -989,13 +989,7 @@ export default function UsersGroupsPage() {
           )}
           sortable
           defaultSort={{ key: activeTab === 'users' ? 'username' : 'name', direction: 'asc' }}
-          pagination={{
-            page,
-            total: currentData.length,
-            perPage,
-            onChange: setPage,
-            onPerPageChange: (v) => { setPerPage(v); setPage(1) }
-          }}
+          pagination={true}
           emptyIcon={activeTab === 'users' ? User : Users}
           emptyTitle={activeTab === 'users' ? t('users.noUsers') : t('groups.noGroups')}
           emptyDescription={activeTab === 'users' ? t('users.createUser') : t('groups.createGroup')}

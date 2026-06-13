@@ -40,11 +40,13 @@ import {
   Fingerprint,
   ArrowsClockwise,
   UploadSimple,
-  LinkSimple
+  LinkSimple,
+  SealCheck
 } from '@phosphor-icons/react'
 import { Badge } from './Badge'
 import { Button } from './Button'
 import { ExportModal } from './ExportModal'
+import { CertificateLintModal } from './CertificateLintModal'
 import { CompactSection, CompactGrid, CompactField } from './DetailCard'
 import { CertificateExtensions, SubjectAltNames } from './CertificateExtensions'
 import { cn } from '../lib/utils'
@@ -124,7 +126,8 @@ export function CertificateDetails({
   const [pemCopied, setPemCopied] = useState(false)
   const [showFullPem, setShowFullPem] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
-  
+  const [showLintModal, setShowLintModal] = useState(false)
+
   if (!certificate) return null
   
   const cert = certificate
@@ -209,6 +212,10 @@ export function CertificateDetails({
               <Download size={14} /> {t('export.title')}
             </Button>
           )}
+          {/* Conformance lint (read-only, always available) */}
+          <Button type="button" size="xs" variant="secondary" onClick={() => setShowLintModal(true)} title={t('lint.action')}>
+            <SealCheck size={14} /> {t('lint.action')}
+          </Button>
           {/* Action buttons */}
           {onRenew && canWrite && !cert.revoked && (
             <Button type="button" size="xs" variant="secondary" onClick={onRenew} title={t('certificates.renewCertificate')} aria-label={t('certificates.renewCertificate')}>
@@ -521,6 +528,14 @@ export function CertificateDetails({
       hasPrivateKey={!!cert.has_private_key}
       canExportKey={canWrite}
       onExport={onExport}
+    />
+
+    {/* Conformance Lint Modal */}
+    <CertificateLintModal
+      certId={cert.id}
+      certName={cert.cn || cert.common_name || cert.descr}
+      open={showLintModal}
+      onClose={() => setShowLintModal(false)}
     />
     </>
   )

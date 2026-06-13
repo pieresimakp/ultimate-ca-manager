@@ -17,6 +17,19 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint('smart_import', __name__)
 
+# The parser runs several full-content regex passes plus per-block crypto
+# parsing, so unbounded content is a CPU/memory DoS amplifier even under the
+# 50 MB global cap. A real certificate bundle is far smaller; 5 MB matches the
+# CSV-upload ceiling and is generous for any legitimate PEM/PKCS12 blob.
+MAX_IMPORT_CONTENT_BYTES = 5 * 1024 * 1024
+
+
+def _content_too_large(content) -> bool:
+    """True if content exceeds the smart-import size cap (measured in bytes)."""
+    if isinstance(content, str):
+        return len(content.encode('utf-8', errors='ignore')) > MAX_IMPORT_CONTENT_BYTES
+    return len(content) > MAX_IMPORT_CONTENT_BYTES
+
 
 @bp.route('/api/v2/import/analyze', methods=['POST'])
 @require_auth(['read:certificates'])
@@ -50,7 +63,9 @@ def analyze_import():
     content = data.get('content')
     if not content:
         return error_response("No content to analyze", 400)
-    
+    if _content_too_large(content):
+        return error_response("Content exceeds maximum import size", 413)
+
     password = data.get('password')
     
     try:
@@ -107,7 +122,9 @@ def execute_import():
     content = data.get('content')
     if not content:
         return error_response("No content to import", 400)
-    
+    if _content_too_large(content):
+        return error_response("Content exceeds maximum import size", 413)
+
     password = data.get('password')
     options = data.get('options', {})
     username = g.current_user.username if hasattr(g, 'current_user') else 'system'

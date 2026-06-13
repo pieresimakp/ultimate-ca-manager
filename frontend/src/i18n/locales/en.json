@@ -570,7 +570,9 @@
     "resetFailed": "Failed to reset password. The link may have expired.",
     "resetting": "Resetting...",
     "checkEmailDescBefore": "If an account exists with",
-    "checkEmailDescAfter": ", you'll receive a password reset link shortly."
+    "checkEmailDescAfter": ", you'll receive a password reset link shortly.",
+    "accountDisabled": "This account has been disabled",
+    "samlValidationFailed": "SAML authentication failed"
   },
   "dashboard": {
     "goodMorning": "Good morning",
@@ -1000,7 +1002,18 @@
     "subtitle_other": "{{count}} templates",
     "subtitle": "{{count}} certificate templates",
     "validityDays": "{{count}} days",
-    "validityDays_one": "{{count}} day"
+    "validityDays_one": "{{count}} day",
+    "showAllTemplates": "Show all {{count}} templates",
+    "showPinnedOnly": "Show pinned only",
+    "pinToCA": "Pin to CA",
+    "unpinFromCA": "Unpin from CA",
+    "pinned": "Pinned",
+    "noPinnedTemplates": "No pinned templates for this CA",
+    "managePins": "Manage CA Pins",
+    "pinSuccess": "Template pinned to CA",
+    "unpinSuccess": "Template unpinned from CA",
+    "selectCA": "Select a Certificate Authority",
+    "pinnedCount": "{{count}} of {{total}} templates pinned"
   },
   "users": {
     "createUser": "Create User",
@@ -1362,8 +1375,23 @@
       "secretTitle": "EAB Credential Generated",
       "secretWarningTitle": "Save the HMAC key now",
       "secretWarning": "This is the only time the HMAC key will be shown. After closing this dialog it cannot be retrieved.",
-      "secretConfirm": "I've saved the credentials"
-    }
+      "secretConfirm": "I've saved the credentials",
+      "notes": "Notes",
+      "notesPlaceholder": "Add notes...",
+      "notesSaved": "Notes saved",
+      "notesSaveFailed": "Failed to save notes",
+      "editNotesTitle": "Edit notes",
+      "confirmDelete": "Permanently delete EAB credential {{kid}}? This cannot be undone.",
+      "deleteTitle": "Delete EAB Credential",
+      "delete": "Delete",
+      "deletedSuccess": "EAB credential deleted",
+      "deleteFailed": "Failed to delete EAB credential"
+    },
+    "termsOfServiceTitlePlaceholder": "Terms of Service (leave empty to hide)",
+    "termsOfServiceBodyPlaceholder": "Write your terms here...\n\nSupports: **bold**, *italic*, [links](url), - lists\n\nUse double empty lines for paragraphs.",
+    "termsOfServiceHelper": "Plain text with markdown-like formatting. Use empty lines for paragraphs.",
+    "termsOfServicePreview": "Preview",
+    "termsOfServiceUrl": "Terms of Service URL"
   },
   "scep": {
     "title": "SCEP Protocol",
@@ -2013,7 +2041,8 @@
       "about": "About",
       "microsoftCA": "Microsoft CA",
       "ct": "CT",
-      "autoRenewal": "Auto-Renewal"
+      "autoRenewal": "Auto-Renewal",
+      "scheduler": "Scheduler"
     },
     "testRecipient": "Test recipient",
     "testRecipientRequired": "Enter a recipient email address for the test",
@@ -2220,7 +2249,21 @@
     "autoRenewalRunSuccess": "Auto-renewal completed: {{renewed}} renewed, {{failed}} failed",
     "autoRenewalRunFailed": "Auto-renewal run failed",
     "autoRenewalSettingsUpdated": "Auto-renewal settings updated",
-    "autoRenewalSettingsFailed": "Failed to update auto-renewal settings"
+    "autoRenewalSettingsFailed": "Failed to update auto-renewal settings",
+    "metrics": {
+      "title": "Prometheus metrics",
+      "subtitle": "Opt-in /metrics endpoint for monitoring",
+      "token": "Metrics token",
+      "tokenPlaceholder": "Enter or generate a bearer token to enable",
+      "tokenRotatePlaceholder": "Enter a new token to rotate (current is kept)",
+      "tokenHelper": "Scrape /metrics with the Authorization: Bearer <token> header. The token is shown only here — copy it now.",
+      "generate": "Generate",
+      "enable": "Enable",
+      "rotate": "Rotate",
+      "disable": "Disable",
+      "enabled": "Metrics endpoint enabled",
+      "disabled": "Metrics endpoint disabled"
+    }
   },
   "account": {
     "profile": "Profile",
@@ -2599,6 +2642,9 @@
     "testMappingNotFound": "User not found in LDAP",
     "testMappingGroups": "Groups found",
     "testMappingResolvedRole": "Resolved role",
+    "testMappingAccess": "Login access",
+    "testMappingAccessAllowed": "Allowed",
+    "testMappingAccessDenied": "Denied (not in required groups)",
     "testMappingNoGroups": "No groups found",
     "testConnectionSuccess": "Connection successful",
     "testConnectionFailed": "Connection failed",
@@ -2606,6 +2652,10 @@
     "connectionSection": "Connection",
     "userSearchSection": "User Search",
     "groupsRolesSection": "Groups & Role Mapping",
+    "requiredGroups": "Required Groups (default-deny)",
+    "requiredGroupsHelp": "Comma-separated list of LDAP/AD groups. Users must belong to at least one group to login. Leave empty to allow all authenticated users.",
+    "requiredGroupsPlaceholder": "e.g., PKI-Admins, PKI-Users, pki-viewers",
+    "accountStatusAttr": "Account Status Attribute",
     "provisioningSection": "User Provisioning",
     "idpSection": "Identity Provider (IdP)",
     "spSection": "Service Provider (SP) Endpoints",
@@ -2643,7 +2693,8 @@
     },
     "syncRoleOnLogin": "Sync role from SSO on each login",
     "syncRoleOnLoginHelp": "When enabled, the role is re-synced from your role mapping on every login. Users without a mapping match keep their UCM role. When disabled (default), the role is set only when the user is created and is then managed in UCM.",
-    "defaultRoleHelp": "Applied only when a user is auto-created on first login."
+    "defaultRoleHelp": "Applied only when a user is auto-created on first login.",
+    "accountStatusAttrHelp": "LDAP attribute that indicates if an account is disabled. Common values: 'description', 'userAccountControl', 'accountStatus'. Leave empty to disable this check."
   },
   "notifications": {
     "certificateIssued": "Certificate issued: {{name}}",
@@ -2930,6 +2981,24 @@
         "headerNameRequired": "Header name is required",
         "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
         "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    },
+    "deliveries": {
+      "title": "Deliveries — {{name}}",
+      "loadFailed": "Failed to load deliveries",
+      "requeued": "Delivery re-queued",
+      "retryFailed": "Failed to re-queue delivery",
+      "empty": "No deliveries yet",
+      "event": "Event",
+      "statusCol": "Status",
+      "attempts": "Attempts",
+      "when": "When",
+      "next": "next",
+      "retry": "Retry",
+      "status": {
+        "pending": "Pending",
+        "delivered": "Delivered",
+        "failed": "Failed"
       }
     }
   },
@@ -3485,7 +3554,9 @@
       "jks": "JKS (Java KeyStore)"
     },
     "formatJksDesc": "Java KeyStore, certificate + key",
-    "jksNote": "JKS always includes the private key"
+    "jksNote": "JKS always includes the private key",
+    "pkcs12Title": "Export PKCS#12",
+    "pkcs12PasswordPrompt": "Enter password for PKCS#12 file"
   },
   "userCertificates": {
     "title": "User Certificates",
@@ -4104,5 +4175,64 @@
     "preset": "Preset",
     "savePreset": "Save preset",
     "managePresets": "Manage presets"
+  },
+  "password_policy": {
+    "required": "Password is required",
+    "minLength": "Password must be at least {{min_length}} characters",
+    "maxLength": "Password must be at most {{max_length}} characters",
+    "uppercase": "Password must contain at least one uppercase letter",
+    "lowercase": "Password must contain at least one lowercase letter",
+    "digit": "Password must contain at least one digit",
+    "special": "Password must contain at least one special character ({{special_chars}})",
+    "common": "Password is too common, please choose a stronger one",
+    "username": "Password cannot contain your username",
+    "similar": "Password is too similar to username",
+    "sequential": "Password cannot contain 4 or more sequential characters",
+    "repeated": "Password cannot contain 4 or more repeated characters",
+    "rules": {
+      "minLength": "At least {{min_length}} characters",
+      "uppercase": "At least one uppercase letter (A-Z)",
+      "lowercase": "At least one lowercase letter (a-z)",
+      "digit": "At least one number (0-9)",
+      "special": "At least one special character ({{special_chars}})"
+    }
+  },
+  "scheduler": {
+    "title": "Scheduler",
+    "subtitle": "Background tasks and their status",
+    "tasksTitle": "Background tasks",
+    "runNow": "Run now",
+    "taskRan": "Task '{{name}}' executed",
+    "runFailed": "Failed to run task",
+    "loadFailed": "Failed to load scheduler tasks",
+    "noTasks": "No scheduled tasks",
+    "warningsCount": "{{count}} warning(s)",
+    "colTask": "Task",
+    "colSchedule": "Schedule",
+    "colLastRun": "Last run",
+    "colNextRun": "Next run",
+    "colDuration": "Duration",
+    "colRuns": "Runs"
+  },
+  "lint": {
+    "action": "Lint",
+    "title": "Conformance lint — {{name}}",
+    "titleGeneric": "Conformance lint",
+    "subtitle": "Check this certificate against X.509 standards (informative only).",
+    "profile_rfc5280": "RFC 5280",
+    "profile_cabf": "CA/Browser Forum",
+    "loadFailed": "Linting failed",
+    "unavailable": "No certificate linter is installed on the server",
+    "unavailableHint": "Install pkilint on the server to enable linting.",
+    "clean": "No issues found",
+    "detectedType": "Detected certificate type",
+    "cabfNote": "Baseline-Requirements rules target public TLS certificates; some findings may not apply to an internal PKI.",
+    "severity": {
+      "fatal": "Fatal",
+      "error": "Error",
+      "warning": "Warning",
+      "notice": "Notice",
+      "info": "Info"
+    }
   }
 }

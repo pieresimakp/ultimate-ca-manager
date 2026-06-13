@@ -118,6 +118,16 @@ export const helpContent = {
     overview: 'Central management for all X.509 certificates. Issue new certificates from your CAs, import existing ones, track expiry dates, and handle renewals and revocations.',
     sections: [
       {
+        title: "Conformance linting",
+        content: "The Lint action on a certificate's detail runs it through standards linters and shows the findings. Informative only — it never blocks issuance.",
+        items: [
+          { label: "Profiles", text: "RFC 5280 (always relevant) and CA/Browser Forum Baseline Requirements (TLS server certificates)" },
+          { label: "Severities", text: "Findings are graded fatal, error, warning, notice, info" },
+          { label: "Engine", text: "Powered by pkilint (and zlint when its binary is present) — an optional server dependency" },
+          { label: "Internal PKI", text: "CA/Browser Forum rules target public certificates; expect non-applicable findings on an internal PKI" },
+        ]
+      },
+      {
         title: 'Certificate Status',
         icon: Certificate,
         definitions: [
@@ -468,6 +478,15 @@ export const helpContent = {
     overview: 'UCM supports two ACME modes: ACME client for public certificates from any RFC 8555-compliant CA (Let\'s Encrypt, ZeroSSL, Buypass, HARICA, etc.), and Local ACME server for internal PKI automation with multi-CA domain mapping.',
     sections: [
       {
+        title: "Renewal Information (ARI, RFC 9773)",
+        content: "The local ACME server advertises a renewalInfo resource so clients learn the ideal moment to renew each certificate.",
+        items: [
+          { label: "Suggested window", text: "Returns a start/end window centered before expiry so renewals spread over time" },
+          { label: "Revocation", text: "A revoked certificate returns a window in the past so compliant clients renew immediately" },
+          { label: "Unauthenticated", text: "renewalInfo is a plain GET — no account or JWS required (RFC 9773)" },
+        ]
+      },
+      {
         title: 'ACME Client',
         icon: Globe,
         items: [
@@ -541,6 +560,18 @@ export const helpContent = {
           '2. DNS Domain mapping — checks the issuing CA configured for the DNS provider',
           '3. Global default — the CA set in ACME server configuration',
           '4. First available CA with a private key',
+        ]
+      },
+      {
+        title: 'IP Address Certificates (RFC 8738)',
+        icon: Globe,
+        content: 'The local ACME server can issue certificates for IPv4 and IPv6 addresses, not just DNS names. Use the "ip" identifier type in the order.',
+        items: [
+          { label: 'Identifier', text: 'Order with { "type": "ip", "value": "192.0.2.10" } (IPv4) or an IPv6 literal like 2001:db8::1' },
+          { label: 'Challenges', text: 'Only HTTP-01 and TLS-ALPN-01 are offered — DNS-01 is forbidden for IP identifiers per RFC 8738' },
+          { label: 'TLS-ALPN-01 SNI', text: 'Validation uses the reverse-DNS form (in-addr.arpa / ip6.arpa) as the SNI hostname' },
+          { label: 'Issued SAN', text: 'The certificate carries an iPAddress SAN; mixed DNS + IP orders are supported' },
+          { label: 'Internal IPs', text: 'RFC1918 and loopback addresses validate out of the box — UCM\'s primary deployment model' },
         ]
       },
     ],
@@ -717,6 +748,42 @@ export const helpContent = {
     subtitle: 'System configuration',
     overview: 'Configure all aspects of the UCM system. Settings are organized by category: general, appearance, email, security, SSO, backup, audit, database, HTTPS, updates, and webhooks.',
     sections: [
+      {
+        title: "Prometheus metrics",
+        content: "Opt-in /metrics endpoint exposing certificate, CA, scheduler, webhook and ACME counters in Prometheus format.",
+        items: [
+          { label: "Enable", text: "Set a metrics token in Settings › General; without a token the endpoint returns 404 (disabled)" },
+          { label: "Auth", text: "Scrape with Authorization: Bearer <token>" },
+          { label: "Counters", text: "ucm_certificates, ucm_certificate_authorities, ucm_scheduler_task_*, ucm_webhook_deliveries, ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Webhook delivery history",
+        content: "Each webhook endpoint keeps a delivery log with status, attempts and a manual retry.",
+        items: [
+          { label: "Statuses", text: "pending / delivered / failed, with the last HTTP code and error" },
+          { label: "Retry", text: "Manually re-queue a failed or already-delivered event" },
+          { label: "Async", text: "Deliveries run from a durable queue with exponential backoff (up to 5 attempts)" },
+        ]
+      },
+      {
+        title: "Scheduler view",
+        content: "Settings › System lists the background tasks with their status and last run.",
+        items: [
+          { label: "Tasks", text: "Expiry checks, CRL refresh, webhook delivery, scheduled backups, auto-renewal, etc." },
+          { label: "Run now", text: "Trigger any task on demand" },
+          { label: "Visibility", text: "Last run, last duration and failure count per task" },
+        ]
+      },
+      {
+        title: "Scheduled backups",
+        content: "Automatic, encrypted database backups on a configurable cadence with retention.",
+        items: [
+          { label: "Cadence", text: "Daily / weekly / monthly" },
+          { label: "Retention", text: "Keep the N most recent backups; older ones are pruned" },
+          { label: "Encryption", text: "Backups are encrypted with the configured backup password" },
+        ]
+      },
       {
         title: 'Categories',
         icon: Gear,

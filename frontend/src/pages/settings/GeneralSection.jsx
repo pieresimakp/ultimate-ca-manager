@@ -1,11 +1,51 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Gear, Clock, FloppyDisk } from '@phosphor-icons/react'
-import { Button, Input, Select, DetailHeader, DetailSection, DetailGrid, DetailContent } from '../../components'
+import { Gear, Clock, FloppyDisk, ChartBar, ArrowsClockwise } from '@phosphor-icons/react'
+import { Button, Input, Select, Badge, DetailHeader, DetailSection, DetailGrid, DetailContent } from '../../components'
 import { ToggleSwitch } from '../../components/ui/ToggleSwitch'
+import { useNotification } from '../../contexts'
+import { settingsService } from '../../services'
 import ServiceStatusWidget from './ServiceStatusWidget'
 
 export default function GeneralSection({ settings, updateSetting, handleSave, saving, canWrite }) {
   const { t } = useTranslation()
+  const { showSuccess, showError } = useNotification()
+  const [metricsToken, setMetricsToken] = useState('')
+  const [metricsBusy, setMetricsBusy] = useState(false)
+
+  const generateToken = () => {
+    const a = new Uint8Array(24)
+    crypto.getRandomValues(a)
+    setMetricsToken(Array.from(a, (b) => b.toString(16).padStart(2, '0')).join(''))
+  }
+  const saveMetricsToken = async () => {
+    if (!metricsToken) return
+    setMetricsBusy(true)
+    try {
+      await settingsService.updateBulk({ metrics_token: metricsToken })
+      updateSetting('metrics_enabled', true)
+      setMetricsToken('')
+      showSuccess(t('settings.metrics.enabled'))
+    } catch (e) {
+      showError(e.message || t('messages.errors.updateFailed.settings'))
+    } finally {
+      setMetricsBusy(false)
+    }
+  }
+  const disableMetrics = async () => {
+    setMetricsBusy(true)
+    try {
+      await settingsService.updateBulk({ metrics_token: '__disable__' })
+      updateSetting('metrics_enabled', false)
+      setMetricsToken('')
+      showSuccess(t('settings.metrics.disabled'))
+    } catch (e) {
+      showError(e.message || t('messages.errors.updateFailed.settings'))
+    } finally {
+      setMetricsBusy(false)
+    }
+  }
+
   return (
     <DetailContent>
       <DetailHeader
@@ -139,6 +179,45 @@ export default function GeneralSection({ settings, updateSetting, handleSave, sa
                 <FloppyDisk size={16} />
                 {t('common.saveChanges')}
               </Button>
+            </div>
+          )}
+        </div>
+      </DetailSection>
+      <DetailSection title={t('settings.metrics.title')} icon={ChartBar} iconClass="icon-bg-violet">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Badge variant={settings.metrics_enabled ? 'success' : 'secondary'} size="sm">
+              {settings.metrics_enabled ? t('common.enabled') : t('common.disabled')}
+            </Badge>
+            <span className="text-xs text-text-secondary">{t('settings.metrics.subtitle')}</span>
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Input
+                label={t('settings.metrics.token')}
+                type="text"
+                value={metricsToken}
+                onChange={(e) => setMetricsToken(e.target.value)}
+                placeholder={settings.metrics_enabled ? t('settings.metrics.tokenRotatePlaceholder') : t('settings.metrics.tokenPlaceholder')}
+                helperText={t('settings.metrics.tokenHelper')}
+              />
+            </div>
+            <Button type="button" variant="secondary" onClick={generateToken} disabled={!canWrite('settings')}>
+              <ArrowsClockwise size={16} />
+              {t('settings.metrics.generate')}
+            </Button>
+          </div>
+          {canWrite('settings') && (
+            <div className="flex items-center gap-2 pt-1">
+              <Button type="button" onClick={saveMetricsToken} disabled={metricsBusy || !metricsToken}>
+                <FloppyDisk size={16} />
+                {settings.metrics_enabled ? t('settings.metrics.rotate') : t('settings.metrics.enable')}
+              </Button>
+              {settings.metrics_enabled && (
+                <Button type="button" variant="danger-soft" onClick={disableMetrics} disabled={metricsBusy}>
+                  {t('settings.metrics.disable')}
+                </Button>
+              )}
             </div>
           )}
         </div>

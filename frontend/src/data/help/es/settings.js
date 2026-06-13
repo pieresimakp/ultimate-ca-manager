@@ -5,6 +5,42 @@ export default {
     overview: 'Configure todos los aspectos del sistema UCM. La configuración está organizada por categorías: general, apariencia, correo electrónico, seguridad, SSO, respaldo, auditoría, base de datos, HTTPS, actualizaciones y webhooks.',
     sections: [
       {
+        title: "Métricas Prometheus",
+        content: "Endpoint /metrics opcional que expone contadores (certificados, CA, planificador, webhooks, ACME) en formato Prometheus.",
+        items: [
+          { label: "Activación", text: "Defina un token de métricas en Ajustes › General; sin token, el endpoint devuelve 404 (desactivado)" },
+          { label: "Autenticación", text: "Recopile con Authorization: Bearer <token>" },
+          { label: "Contadores", text: "ucm_certificates, ucm_certificate_authorities, ucm_scheduler_task_*, ucm_webhook_deliveries, ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Historial de entrega de webhooks",
+        content: "Cada endpoint de webhook mantiene un registro de entrega con estado, intentos y reintento manual.",
+        items: [
+          { label: "Estados", text: "pending / delivered / failed, con el último código HTTP y error" },
+          { label: "Reintentar", text: "Volver a encolar manualmente un evento fallido o ya entregado" },
+          { label: "Asíncrono", text: "Las entregas se ejecutan desde una cola duradera con retroceso exponencial (hasta 5 intentos)" },
+        ]
+      },
+      {
+        title: "Vista del planificador",
+        content: "Ajustes › Sistema enumera las tareas en segundo plano con su estado y última ejecución.",
+        items: [
+          { label: "Tareas", text: "Comprobaciones de expiración, actualización de CRL, entrega de webhooks, copias programadas, autorrenovación, etc." },
+          { label: "Ejecutar ahora", text: "Desencadenar cualquier tarea bajo demanda" },
+          { label: "Visibilidad", text: "Última ejecución, última duración y número de fallos por tarea" },
+        ]
+      },
+      {
+        title: "Copias de seguridad programadas",
+        content: "Copias de seguridad automáticas y cifradas de la base de datos, con cadencia configurable y retención.",
+        items: [
+          { label: "Cadencia", text: "Diaria / semanal / mensual" },
+          { label: "Retención", text: "Conservar las N copias más recientes; las más antiguas se eliminan" },
+          { label: "Cifrado", text: "Las copias se cifran con la contraseña de copia de seguridad configurada" },
+        ]
+      },
+      {
         title: 'Categorías',
         items: [
           { label: 'General', text: 'Nombre de instancia, nombre de host y valores predeterminados del sistema' },
@@ -247,6 +283,38 @@ Los tokens se almacenan cifrados y nunca se devuelven en la UI.
 
 ### Pruebas
 Haga clic en **Probar** para enviar un evento de ejemplo a la URL del webhook y verificar que sea accesible.
+## Métricas Prometheus
+
+Endpoint **\`/metrics\`** opcional y protegido por token.
+
+- Actívelo definiendo un token de métricas (Ajustes › General); sin token → 404
+- Recopile con el encabezado \`Authorization: Bearer <token>\`
+- Expone \`ucm_certificates\`, \`ucm_certificate_authorities\`, \`ucm_scheduler_task_*\`, \`ucm_webhook_deliveries\`, \`ucm_acme_*\`
+
+## Historial de entrega de webhooks
+
+Abra el historial (icono de reloj) en un webhook para ver sus entregas.
+
+- Estados **pending / delivered / failed** con último código HTTP y error
+- **Reintentar** una entrega manualmente
+- Cola duradera con retroceso exponencial (hasta 5 intentos)
+
+## Vista del planificador
+
+Ajustes › Sistema muestra las tareas en segundo plano.
+
+- Lista de tareas con **estado**, **última ejecución**, **duración** y **fallos**
+- **Ejecutar ahora** en cualquier tarea
+- Cubre expiración, CRL, entrega de webhooks, copias, autorrenovación…
+
+## Copias de seguridad programadas
+
+Ajustes › Copia de seguridad permite copias automáticas.
+
+- Cadencia **diaria / semanal / mensual**
+- **Retención**: conservar las N más recientes, eliminar las antiguas
+- Copias **cifradas** con la contraseña de copia
+
 `
   }
 }

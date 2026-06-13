@@ -13,6 +13,7 @@ from services.acme import AcmeService
 from models.acme_models import AcmeAccount, AcmeOrder, AcmeChallenge
 from config.settings import Config
 import logging
+import re
 from utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,38 @@ def acme_error(error_type: str, detail: str, status_code: int = 400) -> Any:
     response.headers['Link'] = f'<{service.base_url}/acme/directory>;rel="index"'
     
     return response
+
+
+def validate_acme_identifier(identifier: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[str]]:
+    """Validate a single ACME identifier (RFC 8555 DNS + RFC 8738 IP).
+
+    Normalizes IP identifier values to their canonical form in place.
+
+    Args:
+        identifier: dict with 'type' and 'value' keys
+
+    Returns:
+        Tuple of (is_valid, acme_error_type, detail). When is_valid is True,
+        error_type and detail are None and ``identifier['value']`` may have
+        been rewritten to its canonical form.
+    """
+    if not identifier or 'type' not in identifier or 'value' not in identifier:
+        return False, 'malformed', 'Valid identifier required'
+
+    # Support both DNS (RFC 8555) and IP (RFC 8738) identifiers
+    if identifier['type'] not in ('dns', 'ip'):
+        return False, 'unsupportedIdentifier', f'Identifier type {identifier["type"]} not supported'
+
+    # Validate IP address format for IP identifiers (RFC 8738)
+    if identifier['type'] == 'ip':
+        from utils.acme_ip import validate_ip_address
+        is_valid, result = validate_ip_address(identifier['value'])
+        if not is_valid:
+            return False, 'malformed', result
+        # Normalize to canonical form
+        identifier['value'] = result
+
+    return True, None, None
 
 
 def _account_id_from_jws(jws_data: Dict[str, Any]) -> Optional[str]:
@@ -371,6 +404,74 @@ def directory():
     }
     
     return acme_response(directory_data)
+
+
+@acme_bp.route('/terms', methods=['GET'])
+def terms_of_service():
+    """Serve ACME Terms of Service content (RFC 8555 Section 7.1.1).
+    
+    Returns HTML-rendered terms stored in SystemConfig.
+    Format: plain text with paragraph breaks (double newline).
+    """
+    from models import SystemConfig
+    
+    tos_cfg = SystemConfig.query.filter_by(key='acme.terms_of_service').first()
+    
+    if tos_cfg and tos_cfg.value:
+        try:
+            data = json.loads(tos_cfg.value)
+        except (json.JSONDecodeError, TypeError):
+            data = {'title': '', 'body': ''}
+    else:
+        data = {'title': '', 'body': ''}
+    
+    title = data.get('title', '')
+    body = data.get('body', '')
+    
+    # Render body: paragraphs separated by double newline,
+    # auto-linkify URLs and email addresses
+    paragraphs = []
+    if body:
+        for block in body.split('\n\n'):
+            block = block.strip()
+            if block:
+                # Escape HTML to prevent XSS
+                block = block.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                # Auto-linkify URLs and emails (after escaping)
+                block = re.sub(
+                    r'(https?://[^\s<>()]+)',
+                    r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+                    block
+                )
+                # Convert single newlines within paragraph to <br>
+                block = block.replace('\n', '<br>')
+                paragraphs.append(block)
+    
+    title_html = title.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    updated = utc_now().strftime('%B %d, %Y')
+    paragraphs_html = ''.join(f'<p>{p}</p>' for p in paragraphs)
+    title_html_tag = f'<h1>{title_html}</h1>' if title_html else ''
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title_html if title_html else 'Terms of Service'}</title>
+<style>
+body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:800px;margin:0 auto;padding:2rem;background:#f5f5f5;color:#1a1a1a}}
+h1{{font-size:1.8rem;margin-bottom:.5rem}}
+p,li{{line-height:1.7;margin-bottom:1rem}}
+a{{color:#2563eb}}
+.updated{{font-size:.85rem;color:#666;margin-bottom:1.5rem}}
+</style></head>
+<body>
+{title_html_tag}
+<div class="updated">Last updated: {updated}</div>
+{paragraphs_html}
+</body></html>"""
+    
+    response = make_response(html, 200)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
 
 
 # ==================== Nonce Management ====================
@@ -653,13 +754,11 @@ def new_authz():
         if account.status == 'deactivated':
             return acme_error('unauthorized', 'Account is deactivated', 401)
         
-        # Validate identifier
+        # Validate identifier (RFC 8555 DNS + RFC 8738 IP)
         identifier = payload.get('identifier')
-        if not identifier or 'type' not in identifier or 'value' not in identifier:
-            return acme_error('malformed', 'Valid identifier required')
-        
-        if identifier['type'] != 'dns':
-            return acme_error('unsupportedIdentifier', f'Identifier type {identifier["type"]} not supported')
+        ok, err_type, err_detail = validate_acme_identifier(identifier)
+        if not ok:
+            return acme_error(err_type, err_detail)
         
         auth = service.create_pre_authorization(account_id, identifier)
         
@@ -680,7 +779,7 @@ def new_authz():
         
         response_data = {
             "status": auth.status,
-            "identifier": json.loads(auth.identifier),
+            "identifier": auth.identifier_obj,
             "challenges": challenges,
             "expires": auth.expires.isoformat() + 'Z'
         }
@@ -753,6 +852,12 @@ def new_order():
         identifiers = payload.get('identifiers', [])
         if not identifiers:
             return acme_error('malformed', 'At least one identifier required')
+        
+        # Validate all identifiers (RFC 8555 DNS + RFC 8738 IP)
+        for identifier in identifiers:
+            ok, err_type, err_detail = validate_acme_identifier(identifier)
+            if not ok:
+                return acme_error(err_type, err_detail)
         
         # Parse optional dates
         not_before = payload.get('notBefore')
@@ -1031,7 +1136,7 @@ def authorization_info(authorization_id: str):
     
     response_data = {
         "status": auth.status,
-        "identifier": json.loads(auth.identifier),
+        "identifier": auth.identifier_obj,
         "challenges": challenges,
         "expires": auth.expires.isoformat() + 'Z'
     }
@@ -1099,9 +1204,21 @@ def respond_to_challenge(challenge_id: str):
                 challenge_account = challenge.authorization.order.account_id
         if challenge_account and challenge_account != account.account_id:
             return acme_error('unauthorized', 'Challenge does not belong to this account', 403)
-        
+
+        # RFC 8555 §7.1.6: 'valid' and 'invalid' are terminal challenge states.
+        # Re-POSTing to a settled challenge MUST NOT re-trigger validation —
+        # otherwise an account could retry an 'invalid' challenge until it
+        # passes, or force re-checks on an already-'valid' one. Return the
+        # current state unchanged. Likewise refuse if the parent authorization
+        # is no longer pending (expired / deactivated / revoked).
+        authz = challenge.authorization
+        if challenge.status in ('valid', 'invalid'):
+            success = (challenge.status == 'valid')
+        elif authz and authz.status != 'pending':
+            return acme_error('malformed',
+                              f'Authorization is {authz.status}, not pending', 403)
         # Trigger validation based on challenge type
-        if challenge.type == "http-01":
+        elif challenge.type == "http-01":
             success = service.validate_http01_challenge(challenge, account)
         elif challenge.type == "dns-01":
             success = service.validate_dns01_challenge(challenge, account)
@@ -1482,11 +1599,23 @@ def key_change():
         # Verify new key differs from old key
         if new_jwk == current_jwk:
             return acme_error('malformed', 'New key must differ from old key')
-        
+
+        # RFC 8555 §7.3.5: reject if the new key already identifies another
+        # account (keyConflict). Without this an attacker who compromised the
+        # old key could collapse two accounts onto one key.
+        new_thumbprint = service._compute_jwk_thumbprint(new_jwk)
+        conflict = AcmeAccount.query.filter(
+            AcmeAccount.jwk_thumbprint == new_thumbprint,
+            AcmeAccount.account_id != account.account_id,
+        ).first()
+        if conflict:
+            return acme_error('malformed',
+                              'New key is already in use by another account', 409)
+
         # Update account JWK
         try:
             account.jwk = json.dumps(new_jwk)
-            account.jwk_thumbprint = service._compute_jwk_thumbprint(new_jwk)
+            account.jwk_thumbprint = new_thumbprint
             db.session.commit()
         except Exception as e:
             db.session.rollback()
@@ -1524,6 +1653,41 @@ def key_change():
 
 
 # ==================== Health Check ====================
+
+@acme_bp.route('/renewalInfo/<certid>', methods=['GET'])
+def renewal_info(certid: str):
+    """ACME Renewal Information (ARI) — RFC 9773 §4.2.
+
+    Unauthenticated GET. Returns a suggestedWindow telling the client when
+    to renew the certificate identified by ``certid``
+    (base64url(AKI)."."base64url(serial)).
+    """
+    from services.acme import ari
+
+    parsed = ari.parse_certid(certid)
+    if parsed is None:
+        return acme_error('malformed', 'Malformed certificate identifier', 400)
+
+    aki_hex, serial_int = parsed
+    cert = ari.find_certificate(aki_hex, serial_int)
+    if cert is None:
+        return acme_error('malformed', 'Unknown certificate', 404)
+
+    from models import SystemConfig
+    days_cfg = SystemConfig.query.filter_by(key='auto_renewal_days').first()
+    try:
+        renew_before_days = int(days_cfg.value) if days_cfg and days_cfg.value else None
+    except (TypeError, ValueError):
+        renew_before_days = None
+
+    data = ari.build_renewal_info(cert, renew_before_days)
+    response = make_response(jsonify(data), 200)
+    response.headers['Content-Type'] = 'application/json'
+    # ARI responses are cacheable (RFC 9773 §4.2); advise re-poll cadence.
+    response.headers['Retry-After'] = str(ari.RETRY_AFTER_SECONDS)
+    response.headers['Cache-Control'] = f'public, max-age={ari.RETRY_AFTER_SECONDS}'
+    return response
+
 
 @acme_bp.route('/health', methods=['GET'])
 def health():

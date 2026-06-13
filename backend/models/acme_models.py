@@ -146,10 +146,30 @@ class AcmeAuthorization(db.Model):
     # Relationships
     order = db.relationship('AcmeOrder', back_populates='authorizations')
     challenges = db.relationship('AcmeChallenge', back_populates='authorization', lazy='dynamic', cascade='all, delete-orphan')
+
+    @property
+    def identifier_obj(self):
+        """Return identifier as a dict: {'type': 'dns', 'value': 'example.com'}."""
+        if isinstance(self.identifier, dict):
+            return self.identifier
+        try:
+            return json.loads(self.identifier or '{}')
+        except (TypeError, ValueError):
+            return {}
+
+    @property
+    def identifier_value(self):
+        """Return the ACME identifier value (domain) for audit/logging code."""
+        return self.identifier_obj.get('value', '')
+
+    @property
+    def identifier_type(self):
+        """Return the ACME identifier type (usually 'dns')."""
+        return self.identifier_obj.get('type', '')
     
     def to_dict(self):
         """Convert to ACME authorization object"""
-        identifier_obj = json.loads(self.identifier) if isinstance(self.identifier, str) else self.identifier
+        identifier_obj = self.identifier_obj
         
         result = {
             'identifier': identifier_obj,
@@ -540,6 +560,7 @@ class AcmeEabCredential(db.Model):
     revoked_at = db.Column(db.DateTime)
     revoked_by_user_id = db.Column(db.Integer)
     status = db.Column(db.String(20), default='active', nullable=False, index=True)
+    notes = db.Column(db.Text, nullable=True)
 
     # --- Encrypted property accessor ---
 
@@ -577,6 +598,7 @@ class AcmeEabCredential(db.Model):
             'kid': self.kid,
             'label': self.label,
             'status': self.status,
+            'notes': self.notes,
             'created_at': utc_isoformat(self.created_at),
             'expires_at': utc_isoformat(self.expires_at) if self.expires_at else None,
             'used_at': utc_isoformat(self.used_at) if self.used_at else None,

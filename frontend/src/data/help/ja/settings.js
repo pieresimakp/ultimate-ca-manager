@@ -5,6 +5,42 @@ export default {
     overview: 'UCMシステムのすべての側面を設定します。設定はカテゴリ別に整理されています：一般、外観、メール、セキュリティ、SSO、バックアップ、監査、データベース、HTTPS、更新、Webhook。',
     sections: [
       {
+        title: "Prometheus メトリクス",
+        content: "証明書・CA・スケジューラ・Webhook・ACME のカウンターを Prometheus 形式で公開する、オプトインの /metrics エンドポイント。",
+        items: [
+          { label: "有効化", text: "設定 › 一般でメトリクストークンを設定します。トークンが無い場合、エンドポイントは 404 を返します（無効）" },
+          { label: "認証", text: "Authorization: Bearer <トークン> でスクレイプします" },
+          { label: "カウンター", text: "ucm_certificates、ucm_certificate_authorities、ucm_scheduler_task_*、ucm_webhook_deliveries、ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Webhook 配信履歴",
+        content: "各 Webhook エンドポイントは、ステータス・試行回数・手動再試行を含む配信ログを保持します。",
+        items: [
+          { label: "ステータス", text: "pending / delivered / failed、最後の HTTP コードとエラー付き" },
+          { label: "再試行", text: "失敗または配信済みのイベントを手動で再キューイング" },
+          { label: "非同期", text: "配信は永続キューから指数バックオフで実行されます（最大 5 回）" },
+        ]
+      },
+      {
+        title: "スケジューラビュー",
+        content: "設定 › システムは、ステータスと最終実行を含むバックグラウンドタスクを一覧表示します。",
+        items: [
+          { label: "タスク", text: "有効期限チェック、CRL 更新、Webhook 配信、スケジュールバックアップ、自動更新など" },
+          { label: "今すぐ実行", text: "任意のタスクをオンデマンドで起動" },
+          { label: "可視性", text: "タスクごとの最終実行・最終所要時間・失敗回数" },
+        ]
+      },
+      {
+        title: "スケジュールバックアップ",
+        content: "設定可能な頻度と保持期間で、データベースを自動・暗号化バックアップします。",
+        items: [
+          { label: "頻度", text: "毎日 / 毎週 / 毎月" },
+          { label: "保持", text: "最新 N 件のバックアップを保持。古いものは削除されます" },
+          { label: "暗号化", text: "バックアップは設定したバックアップパスワードで暗号化されます" },
+        ]
+      },
+      {
         title: 'カテゴリ',
         items: [
           { label: '一般', text: 'インスタンス名、ホスト名、システム全体のデフォルト' },
@@ -235,6 +271,38 @@ UCM WebインターフェースのTLS証明書を管理：
 
 ### テスト
 **テスト**をクリックしてサンプルイベントをWebhook URLに送信し、到達可能であることを確認します。
+## Prometheus メトリクス
+
+オプトインかつトークン保護の **\`/metrics\`** エンドポイント。
+
+- メトリクストークンを設定して有効化（設定 › 一般）。トークンが無ければ → 404
+- \`Authorization: Bearer <トークン>\` ヘッダーでスクレイプ
+- \`ucm_certificates\`、\`ucm_certificate_authorities\`、\`ucm_scheduler_task_*\`、\`ucm_webhook_deliveries\`、\`ucm_acme_*\` を公開
+
+## Webhook 配信履歴
+
+Webhook の履歴（時計アイコン）を開いて配信を確認します。
+
+- **pending / delivered / failed** ステータス、最後の HTTP コードとエラー付き
+- 配信を手動で**再試行**
+- 永続キュー＋指数バックオフ（最大 5 回）
+
+## スケジューラビュー
+
+設定 › システムはバックグラウンドタスクを表示します。
+
+- **ステータス**・**最終実行**・**所要時間**・**失敗回数**付きのタスク一覧
+- 任意のタスクを**今すぐ実行**
+- 有効期限、CRL、Webhook 配信、バックアップ、自動更新などを網羅
+
+## スケジュールバックアップ
+
+設定 › バックアップで自動バックアップを有効化します。
+
+- **毎日 / 毎週 / 毎月**の頻度
+- **保持**：最新 N 件を保持し、古いものを削除
+- バックアップパスワードで**暗号化**
+
 `
   }
 }

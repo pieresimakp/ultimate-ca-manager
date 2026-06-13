@@ -5,6 +5,16 @@ export default {
     overview: '集中管理所有 X.509 证书。从您的 CA 签发新证书、导入已有证书、跟踪到期日期、处理续期和吊销。',
     sections: [
       {
+        title: "合规性检查",
+        content: "证书详情中的「检查」操作会用标准检查器对其进行分析并显示结果。仅供参考——绝不阻止签发。",
+        items: [
+          { label: "配置", text: "RFC 5280（始终适用）和 CA/Browser Forum 基线要求（TLS 服务器证书）" },
+          { label: "严重级别", text: "结果分级：fatal、error、warning、notice、info" },
+          { label: "引擎", text: "由 pkilint 驱动（如存在 zlint 二进制文件也会使用）——可选的服务器依赖" },
+          { label: "内部 PKI", text: "CA/Browser Forum 规则面向公共证书；内部 PKI 上会出现不适用的结果" },
+        ]
+      },
+      {
         title: '证书状态',
         definitions: [
           { term: '有效', description: '在有效期内且未被吊销' },
@@ -154,6 +164,15 @@ export default {
 - **CA 筛选** — 显示特定 CA 签发的证书
 - **文本搜索** — 按 CN、序列号或 SAN 搜索
 - **排序** — 按名称、到期日期、创建日期、状态
+## 合规性检查
+
+**检查**操作（证书详情）检查 X.509 标准合规性。仅供参考。
+
+- **RFC 5280** — IETF X.509 配置，始终适用
+- **CA/Browser Forum** — 面向公共 TLS 证书的基线要求（内部 PKI 上会有噪声）
+- 严重级别：fatal / error / warning / notice / info
+- 引擎：pkilint（如存在则加 zlint）——可选服务器依赖，缺失时优雅降级
+
 `
   }
 }

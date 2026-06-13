@@ -54,6 +54,7 @@ import AuditSection from './settings/AuditSection'
 import DatabaseSection from './settings/DatabaseSection'
 import HttpsSection from './settings/HttpsSection'
 import UpdatesSection from './settings/UpdatesSection'
+import SchedulerSection from './settings/SchedulerSection'
 import WebhooksSection from './settings/WebhooksSection'
 import CTSection from './settings/CTSection'
 import MicrosoftCASection from './settings/MicrosoftCASection'
@@ -73,6 +74,7 @@ const BASE_SETTINGS_CATEGORIES = [
   { id: 'database', labelKey: 'settings.tabs.database', icon: HardDrives, color: 'icon-bg-teal' },
   { id: 'https', labelKey: 'settings.tabs.https', icon: Lock, color: 'icon-bg-emerald' },
   { id: 'updates', labelKey: 'settings.tabs.updates', icon: Rocket, color: 'icon-bg-violet' },
+  { id: 'scheduler', labelKey: 'settings.tabs.scheduler', icon: Timer, color: 'icon-bg-blue' },
   { id: 'webhooks', labelKey: 'settings.tabs.webhooks', icon: Bell, color: 'icon-bg-rose' },
   { id: 'ct', labelKey: 'settings.tabs.ct', icon: Eye, color: 'icon-bg-cyan' },
   { id: 'autoRenewal', labelKey: 'settings.tabs.autoRenewal', icon: ClockClockwise, color: 'icon-bg-emerald' },
@@ -1330,6 +1332,8 @@ export default function SettingsPage() {
         )
       case 'updates':
         return <UpdatesSection />
+      case 'scheduler':
+        return <SchedulerSection hasPermission={hasPermission} />
       case 'webhooks':
         return (
           <WebhooksSection
@@ -1458,7 +1462,7 @@ export default function SettingsPage() {
         onTabChange={handleCategoryChange}
         tabLayout="sidebar"
         tabGroups={[
-          { labelKey: 'settings.groups.system', tabs: ['general', 'updates', 'database', 'https', 'backup'], color: 'icon-bg-blue' },
+          { labelKey: 'settings.groups.system', tabs: ['general', 'updates', 'scheduler', 'database', 'https', 'backup'], color: 'icon-bg-blue' },
           { labelKey: 'settings.groups.security', tabs: ['security', 'sso', 'ct'], color: 'icon-bg-amber' },
           { labelKey: 'settings.groups.notifications', tabs: ['email', 'webhooks'], color: 'icon-bg-teal' },
           { labelKey: 'settings.groups.automation', tabs: ['autoRenewal'], color: 'icon-bg-emerald' },

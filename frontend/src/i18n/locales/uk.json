@@ -569,7 +569,9 @@
     "resetFailed": "Не вдалося скинути пароль. Можливо, термін дії посилання закінчився.",
     "resetting": "Скидання...",
     "checkEmailDescBefore": "Якщо обліковий запис з",
-    "checkEmailDescAfter": " існує, ви отримаєте посилання для скидання найближчим часом."
+    "checkEmailDescAfter": " існує, ви отримаєте посилання для скидання найближчим часом.",
+    "accountDisabled": "Цей обліковий запис вимкнено",
+    "samlValidationFailed": "Помилка автентифікації SAML"
   },
   "dashboard": {
     "goodMorning": "Доброго ранку",
@@ -999,7 +1001,18 @@
     "subtitle_other": "{{count}} шаблонів",
     "subtitle": "{{count}} шаблонів сертифікатів",
     "validityDays": "{{count}} днів",
-    "validityDays_one": "{{count}} день"
+    "validityDays_one": "{{count}} день",
+    "showAllTemplates": "Show all {{count}} templates",
+    "showPinnedOnly": "Show pinned only",
+    "pinToCA": "Pin to CA",
+    "unpinFromCA": "Unpin from CA",
+    "pinned": "Pinned",
+    "noPinnedTemplates": "No pinned templates for this CA",
+    "managePins": "Manage CA Pins",
+    "pinSuccess": "Template pinned to CA",
+    "unpinSuccess": "Template unpinned from CA",
+    "selectCA": "Select a Certificate Authority",
+    "pinnedCount": "{{count}} of {{total}} templates pinned"
   },
   "users": {
     "createUser": "Створити користувача",
@@ -1361,8 +1374,23 @@
       "secretTitle": "Облікові дані EAB згенеровано",
       "secretWarningTitle": "Збережіть ключ HMAC зараз",
       "secretWarning": "Це єдиний раз, коли ключ HMAC буде показано. Після закриття цього діалогу його не можна буде отримати.",
-      "secretConfirm": "Я зберіг облікові дані"
-    }
+      "secretConfirm": "Я зберіг облікові дані",
+      "notes": "Нотатки",
+      "notesPlaceholder": "Додати нотатки...",
+      "notesSaved": "Нотатки збережено",
+      "notesSaveFailed": "Не вдалося зберегти нотатки",
+      "editNotesTitle": "Редагувати нотатки",
+      "confirmDelete": "Безповоротно видалити облікові дані EAB {{kid}}? Цю дію не можна скасувати.",
+      "deleteTitle": "Видалити облікові дані EAB",
+      "delete": "Видалити",
+      "deletedSuccess": "Облікові дані EAB видалено",
+      "deleteFailed": "Не вдалося видалити облікові дані EAB"
+    },
+    "termsOfServiceTitlePlaceholder": "Умови надання послуг (залиште порожнім для приховування)",
+    "termsOfServiceBodyPlaceholder": "Напишіть свої умови тут...\n\nПідтримує: **жирний**, *курсив*, [посилання](url), - списки\n\nВикористовуйте порожні рядки для абзаців.",
+    "termsOfServiceHelper": "Простий текст із форматуванням типу markdown. Використовуйте порожні рядки для абзаців.",
+    "termsOfServicePreview": "Попередній перегляд",
+    "termsOfServiceUrl": "URL Умов надання послуг"
   },
   "scep": {
     "title": "Протокол SCEP",
@@ -2011,7 +2039,8 @@
       "about": "Про програму",
       "microsoftCA": "Microsoft CA",
       "ct": "CT",
-      "autoRenewal": "Авто-поновлення"
+      "autoRenewal": "Авто-поновлення",
+      "scheduler": "Планувальник"
     },
     "testRecipient": "Одержувач тесту",
     "testRecipientRequired": "Введіть адресу електронної пошти одержувача для тесту",
@@ -2218,7 +2247,21 @@
     "autoRenewalRunSuccess": "Поновлення завершено: {{renewed}} поновлено, {{failed}} не вдалося",
     "autoRenewalRunFailed": "Помилка виконання автоматичного поновлення",
     "autoRenewalSettingsUpdated": "Налаштування автоматичного поновлення оновлено",
-    "autoRenewalSettingsFailed": "Не вдалося оновити налаштування поновлення"
+    "autoRenewalSettingsFailed": "Не вдалося оновити налаштування поновлення",
+    "metrics": {
+      "title": "Метрики Prometheus",
+      "subtitle": "Необовʼязковий endpoint /metrics для моніторингу",
+      "token": "Токен метрик",
+      "tokenPlaceholder": "Введіть або згенеруйте bearer-токен для активації",
+      "tokenRotatePlaceholder": "Введіть новий токен для ротації (поточний зберігається)",
+      "tokenHelper": "Збирайте /metrics із заголовком Authorization: Bearer <токен>. Токен показується лише тут — скопіюйте його зараз.",
+      "generate": "Згенерувати",
+      "enable": "Увімкнути",
+      "rotate": "Ротувати",
+      "disable": "Вимкнути",
+      "enabled": "Endpoint метрик увімкнено",
+      "disabled": "Endpoint метрик вимкнено"
+    }
   },
   "account": {
     "profile": "Профіль",
@@ -2591,6 +2634,10 @@
     "spMetadataXmlDesc": "Надайте цю URL-адресу вашому IdP для автоматичної конфігурації SP",
     "attributeRoleMappingSection": "Зіставлення атрибутів та ролей",
     "groupsRolesSection": "Групи та зіставлення ролей",
+    "requiredGroups": "Обов'язкові групи (типово — відмова)",
+    "requiredGroupsHelp": "Список груп LDAP/AD, розділених комами. Користувачі повинні належати принаймні до однієї групи для входу. Залиште порожнім, щоб дозволити всіх автентифікованих користувачів.",
+    "requiredGroupsPlaceholder": "напр.: PKI-Admins, PKI-Users, pki-viewers",
+    "accountStatusAttr": "Атрибут стану облікового запису",
     "provisioningSection": "Підготовка користувачів",
     "userSearchSection": "Пошук користувачів",
     "testConnection": "Тестувати з'єднання",
@@ -2605,6 +2652,9 @@
     "testMappingNoGroups": "Груп не знайдено",
     "testMappingNotFound": "Користувача не знайдено в LDAP",
     "testMappingResolvedRole": "Вирішена роль",
+    "testMappingAccess": "Доступ до входу",
+    "testMappingAccessAllowed": "Дозволено",
+    "testMappingAccessDenied": "Відмовлено (не входить до обов'язкових груп)",
     "testMappingFailed": "Тест зіставлення не вдався",
     "oauth2Preset": "Шаблон провайдера",
     "oauth2PresetHelp": "Виберіть шаблон для автозаповнення кінцевих точок OAuth2/OIDC для поширених провайдерів.",
@@ -2639,7 +2689,8 @@
     },
     "syncRoleOnLogin": "Синхронізувати роль із SSO під час кожного входу",
     "syncRoleOnLoginHelp": "Якщо увімкнено, роль повторно синхронізується з вашого зіставлення ролей під час кожного входу. Користувачі без збігу зберігають свою роль UCM. Якщо вимкнено (за замовчуванням), роль встановлюється лише під час створення користувача, а потім керується в UCM.",
-    "defaultRoleHelp": "Застосовується лише під час автоматичного створення користувача при першому вході."
+    "defaultRoleHelp": "Застосовується лише під час автоматичного створення користувача при першому вході.",
+    "accountStatusAttrHelp": "Атрибут LDAP, який вказує, чи обліковий запис вимкнено. Поширені значення: 'description', 'userAccountControl', 'accountStatus'. Залиште порожнім, щоб вимкнути цю перевірку."
   },
   "notifications": {
     "certificateIssued": "Сертифікат видано: {{name}}",
@@ -2926,6 +2977,24 @@
         "headerNameRequired": "Header name is required",
         "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
         "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    },
+    "deliveries": {
+      "title": "Доставки — {{name}}",
+      "loadFailed": "Не вдалося завантажити доставки",
+      "requeued": "Доставку повторно поставлено в чергу",
+      "retryFailed": "Не вдалося повторно поставити в чергу",
+      "empty": "Доставок ще немає",
+      "event": "Подія",
+      "statusCol": "Статус",
+      "attempts": "Спроби",
+      "when": "Коли",
+      "next": "наступна",
+      "retry": "Повторити",
+      "status": {
+        "pending": "Очікує",
+        "delivered": "Доставлено",
+        "failed": "Помилка"
       }
     }
   },
@@ -3480,7 +3549,9 @@
       "jks": "JKS (Java KeyStore)"
     },
     "formatJksDesc": "Java KeyStore, сертифікат + ключ",
-    "jksNote": "JKS завжди включає приватний ключ"
+    "jksNote": "JKS завжди включає приватний ключ",
+    "pkcs12Title": "Експорт PKCS#12",
+    "pkcs12PasswordPrompt": "Введіть пароль для файла PKCS#12"
   },
   "userCertificates": {
     "title": "Сертифікати користувачів",
@@ -4099,5 +4170,64 @@
     "preset": "Пресет",
     "savePreset": "Зберегти пресет",
     "managePresets": "Керувати пресетами"
+  },
+  "password_policy": {
+    "required": "Пароль обов'язковий",
+    "minLength": "Пароль має містити щонайменше {{min_length}} символів",
+    "maxLength": "Пароль має містити не більше {{max_length}} символів",
+    "uppercase": "Пароль має містити щонайменше одну велику літеру",
+    "lowercase": "Пароль має містити щонайменше одну малу літеру",
+    "digit": "Пароль має містити щонайменше одну цифру",
+    "special": "Пароль має містити щонайменше один спецсимвол ({{special_chars}})",
+    "common": "Занадто простий пароль, виберіть складніший",
+    "username": "Пароль не може містити ваше ім'я користувача",
+    "similar": "Пароль занадто схожий на ім'я користувача",
+    "sequential": "Пароль не може містити 4 або більше послідовних символів",
+    "repeated": "Пароль не може містити 4 або більше повторюваних символів",
+    "rules": {
+      "minLength": "Щонайменше {{min_length}} символів",
+      "uppercase": "Щонайменше одну велику літеру (A-Z)",
+      "lowercase": "Щонайменше одну малу літеру (a-z)",
+      "digit": "Щонайменше одну цифру (0-9)",
+      "special": "Щонайменше один спецсимвол ({{special_chars}})"
+    }
+  },
+  "scheduler": {
+    "title": "Планувальник",
+    "subtitle": "Фонові завдання та їхній стан",
+    "tasksTitle": "Фонові завдання",
+    "runNow": "Запустити",
+    "taskRan": "Завдання {{name}} виконано",
+    "runFailed": "Не вдалося виконати завдання",
+    "loadFailed": "Не вдалося завантажити завдання",
+    "noTasks": "Немає запланованих завдань",
+    "warningsCount": "{{count}} попередження",
+    "colTask": "Завдання",
+    "colSchedule": "Розклад",
+    "colLastRun": "Останній запуск",
+    "colNextRun": "Наступний запуск",
+    "colDuration": "Тривалість",
+    "colRuns": "Запуски"
+  },
+  "lint": {
+    "action": "Перевірити",
+    "title": "Перевірка відповідності — {{name}}",
+    "titleGeneric": "Перевірка відповідності",
+    "subtitle": "Перевіряє цей сертифікат на відповідність стандартам X.509 (лише інформативно).",
+    "profile_rfc5280": "RFC 5280",
+    "profile_cabf": "CA/Browser Forum",
+    "loadFailed": "Помилка перевірки",
+    "unavailable": "На сервері не встановлено жодного лінтера сертифікатів",
+    "unavailableHint": "Встановіть pkilint на сервері, щоб увімкнути перевірку.",
+    "clean": "Проблем не виявлено",
+    "detectedType": "Виявлений тип сертифіката",
+    "cabfNote": "Правила Baseline Requirements стосуються публічних TLS-сертифікатів; деякі результати можуть не застосовуватися до внутрішньої PKI.",
+    "severity": {
+      "fatal": "Критично",
+      "error": "Помилка",
+      "warning": "Попередження",
+      "notice": "Зауваження",
+      "info": "Інфо"
+    }
   }
 }

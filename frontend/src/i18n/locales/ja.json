@@ -569,7 +569,9 @@
     "resetFailed": "リセットに失敗しました。リンクの期限が切れている可能性があります。",
     "resetting": "リセット中...",
     "checkEmailDescBefore": "",
-    "checkEmailDescAfter": "のアカウントが存在する場合、パスワードリセットリンクが送信されます。"
+    "checkEmailDescAfter": "のアカウントが存在する場合、パスワードリセットリンクが送信されます。",
+    "accountDisabled": "このアカウントは無効化されています",
+    "samlValidationFailed": "SAML認証に失敗しました"
   },
   "dashboard": {
     "goodMorning": "おはようございます",
@@ -999,7 +1001,18 @@
     "subtitle_other": "{{count}} 件のテンプレート",
     "subtitle": "{{count}} 件の証明書テンプレート",
     "validityDays": "{{count}}日",
-    "validityDays_one": "{{count}} day"
+    "validityDays_one": "{{count}} day",
+    "showAllTemplates": "Show all {{count}} templates",
+    "showPinnedOnly": "Show pinned only",
+    "pinToCA": "Pin to CA",
+    "unpinFromCA": "Unpin from CA",
+    "pinned": "Pinned",
+    "noPinnedTemplates": "No pinned templates for this CA",
+    "managePins": "Manage CA Pins",
+    "pinSuccess": "Template pinned to CA",
+    "unpinSuccess": "Template unpinned from CA",
+    "selectCA": "Select a Certificate Authority",
+    "pinnedCount": "{{count}} of {{total}} templates pinned"
   },
   "users": {
     "createUser": "ユーザーを作成",
@@ -1361,8 +1374,23 @@
       "secretTitle": "EAB 資格情報を生成しました",
       "secretWarningTitle": "今すぐ HMAC キーを保存してください",
       "secretWarning": "HMAC キーが表示されるのはこの一度だけです。このダイアログを閉じると取得できなくなります。",
-      "secretConfirm": "資格情報を保存しました"
-    }
+      "secretConfirm": "資格情報を保存しました",
+      "notes": "メモ",
+      "notesPlaceholder": "メモを追加...",
+      "notesSaved": "メモを保存しました",
+      "notesSaveFailed": "メモの保存に失敗しました",
+      "editNotesTitle": "メモを編集",
+      "confirmDelete": "EAB資格 {{kid}} を完全に削除しますか？この操作は元に戻せません。",
+      "deleteTitle": "EAB資格を削除",
+      "delete": "削除",
+      "deletedSuccess": "EAB資格を削除しました",
+      "deleteFailed": "EAB資格の削除に失敗しました"
+    },
+    "termsOfServiceTitlePlaceholder": "利用規約（空白で非表示）",
+    "termsOfServiceBodyPlaceholder": "ここに規約を入力...\n\n対応：**太字**, *斜体*, [リンク](url), - リスト\n\n段落には空行を使用。",
+    "termsOfServiceHelper": "マークダウン風フォーマットのプレーンテキスト。段落には空行を使用。",
+    "termsOfServicePreview": "プレビュー",
+    "termsOfServiceUrl": "利用規約URL"
   },
   "scep": {
     "title": "SCEPプロトコル",
@@ -2011,7 +2039,8 @@
       "about": "概要",
       "microsoftCA": "Microsoft CA",
       "ct": "CT",
-      "autoRenewal": "自動更新"
+      "autoRenewal": "自動更新",
+      "scheduler": "スケジューラ"
     },
     "testRecipient": "テスト送信先",
     "testRecipientRequired": "テスト用の送信先メールアドレスを入力してください",
@@ -2218,7 +2247,21 @@
     "autoRenewalRunSuccess": "自動更新完了: {{renewed}} 件更新、{{failed}} 件失敗",
     "autoRenewalRunFailed": "自動更新の実行に失敗しました",
     "autoRenewalSettingsUpdated": "自動更新設定を更新しました",
-    "autoRenewalSettingsFailed": "自動更新設定の更新に失敗しました"
+    "autoRenewalSettingsFailed": "自動更新設定の更新に失敗しました",
+    "metrics": {
+      "title": "Prometheus メトリクス",
+      "subtitle": "監視用のオプトイン /metrics エンドポイント",
+      "token": "メトリクストークン",
+      "tokenPlaceholder": "有効化するには bearer トークンを入力または生成",
+      "tokenRotatePlaceholder": "ローテーションする新しいトークンを入力（現在のものは保持）",
+      "tokenHelper": "Authorization: Bearer <トークン> ヘッダーで /metrics をスクレイプします。トークンはここにのみ表示されます — 今すぐコピーしてください。",
+      "generate": "生成",
+      "enable": "有効化",
+      "rotate": "ローテーション",
+      "disable": "無効化",
+      "enabled": "メトリクスエンドポイントを有効化しました",
+      "disabled": "メトリクスエンドポイントを無効化しました"
+    }
   },
   "account": {
     "profile": "プロフィール",
@@ -2591,6 +2634,10 @@
     "spMetadataXmlDesc": "自動SP設定のためにこのURLをIdPに提供してください",
     "attributeRoleMappingSection": "属性とロールマッピング",
     "groupsRolesSection": "グループとロールマッピング",
+    "requiredGroups": "必須グループ（デフォルト拒否）",
+    "requiredGroupsHelp": "LDAP/ADグループのカンマ区切りリスト。ユーザーはログインするために少なくとも1つのグループに属している必要があります。すべての認証済みユーザーを許可する場合は空にしてください。",
+    "requiredGroupsPlaceholder": "例: PKI-Admins, PKI-Users, pki-viewers",
+    "accountStatusAttr": "アカウント状態属性",
     "provisioningSection": "ユーザープロビジョニング",
     "userSearchSection": "ユーザー検索",
     "testConnection": "接続テスト",
@@ -2605,6 +2652,9 @@
     "testMappingNoGroups": "グループが見つかりません",
     "testMappingNotFound": "LDAPでユーザーが見つかりません",
     "testMappingResolvedRole": "解決されたロール",
+    "testMappingAccess": "ログインアクセス",
+    "testMappingAccessAllowed": "許可",
+    "testMappingAccessDenied": "拒否（必須グループに属していません）",
     "testMappingFailed": "マッピングテスト失敗",
     "oauth2Preset": "プロバイダープリセット",
     "oauth2PresetHelp": "プリセットを選択して、一般的なプロバイダーのOAuth2/OIDCエンドポイントを自動入力します。",
@@ -2639,7 +2689,8 @@
     },
     "syncRoleOnLogin": "ログインごとに SSO からロールを同期",
     "syncRoleOnLoginHelp": "有効にすると、ログインごとにロールマッピングからロールが再同期されます。マッピングに一致しないユーザーは UCM のロールを保持します。無効（デフォルト）の場合、ロールはユーザー作成時にのみ設定され、その後は UCM で管理されます。",
-    "defaultRoleHelp": "初回ログイン時にユーザーが自動作成される場合にのみ適用されます。"
+    "defaultRoleHelp": "初回ログイン時にユーザーが自動作成される場合にのみ適用されます。",
+    "accountStatusAttrHelp": "アカウントが無効化されているかどうかを示すLDAP属性。一般的な値： 'description'、 'userAccountControl'、 'accountStatus'。このチェックを無効にするには空白にしてください。"
   },
   "notifications": {
     "certificateIssued": "証明書が発行されました：{{name}}",
@@ -2926,6 +2977,24 @@
         "headerNameRequired": "Header name is required",
         "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
         "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    },
+    "deliveries": {
+      "title": "配信 — {{name}}",
+      "loadFailed": "配信の読み込みに失敗しました",
+      "requeued": "配信を再キューしました",
+      "retryFailed": "再キューに失敗しました",
+      "empty": "配信はまだありません",
+      "event": "イベント",
+      "statusCol": "ステータス",
+      "attempts": "試行",
+      "when": "いつ",
+      "next": "次回",
+      "retry": "再試行",
+      "status": {
+        "pending": "保留中",
+        "delivered": "配信済み",
+        "failed": "失敗"
       }
     }
   },
@@ -3480,7 +3549,9 @@
       "jks": "JKS (Java KeyStore)"
     },
     "formatJksDesc": "Java KeyStore、証明書 + 鍵",
-    "jksNote": "JKSには常に秘密鍵が含まれます"
+    "jksNote": "JKSには常に秘密鍵が含まれます",
+    "pkcs12Title": "PKCS#12をエクスポート",
+    "pkcs12PasswordPrompt": "PKCS#12 ファイルのパスワードを入力してください"
   },
   "userCertificates": {
     "title": "ユーザー証明書",
@@ -4099,5 +4170,64 @@
     "preset": "プリセット",
     "savePreset": "プリセットを保存",
     "managePresets": "プリセットを管理"
+  },
+  "password_policy": {
+    "required": "パスワードが必要です",
+    "minLength": "パスワードは{{min_length}}文字以上である必要があります",
+    "maxLength": "パスワードは{{max_length}}文字以下である必要があります",
+    "uppercase": "パスワードには少なくとも1つの大文字を含める必要があります",
+    "lowercase": "パスワードには少なくとも1つの小文字を含める必要があります",
+    "digit": "パスワードには少なくとも1つの数字を含める必要があります",
+    "special": "パスワードには少なくとも1つの特殊文字を含める必要があります ({{special_chars}})",
+    "common": "パスワードが強すぎます。より強力なものを選択してください",
+    "username": "パスワードにユーザー名を含めることはできません",
+    "similar": "パスワードがユーザー名と似すぎています",
+    "sequential": "パスワードに4文字以上の連続文字を含めることはできません",
+    "repeated": "パスワードに4文字以上の繰り返し文字を含めることはできません",
+    "rules": {
+      "minLength": "少なくとも{{min_length}}文字",
+      "uppercase": "少なくとも1つの大文字 (A-Z)",
+      "lowercase": "少なくとも1つの小文字 (a-z)",
+      "digit": "少なくとも1つの数字 (0-9)",
+      "special": "少なくとも1つの特殊文字 ({{special_chars}})"
+    }
+  },
+  "scheduler": {
+    "title": "スケジューラ",
+    "subtitle": "バックグラウンドタスクとその状態",
+    "tasksTitle": "バックグラウンドタスク",
+    "runNow": "今すぐ実行",
+    "taskRan": "タスク {{name}} を実行しました",
+    "runFailed": "タスクの実行に失敗しました",
+    "loadFailed": "タスクの読み込みに失敗しました",
+    "noTasks": "スケジュールされたタスクはありません",
+    "warningsCount": "{{count}} 件の警告",
+    "colTask": "タスク",
+    "colSchedule": "頻度",
+    "colLastRun": "前回実行",
+    "colNextRun": "次回実行",
+    "colDuration": "所要時間",
+    "colRuns": "実行回数"
+  },
+  "lint": {
+    "action": "検査",
+    "title": "適合性検査 — {{name}}",
+    "titleGeneric": "適合性検査",
+    "subtitle": "この証明書を X.509 標準に照らして検査します（参考情報のみ）。",
+    "profile_rfc5280": "RFC 5280",
+    "profile_cabf": "CA/Browser Forum",
+    "loadFailed": "検査に失敗しました",
+    "unavailable": "サーバーに証明書リンターがインストールされていません",
+    "unavailableHint": "検査を有効にするには、サーバーに pkilint をインストールしてください。",
+    "clean": "問題は見つかりませんでした",
+    "detectedType": "検出された証明書タイプ",
+    "cabfNote": "Baseline Requirements のルールは公開 TLS 証明書を対象としています。一部の結果は内部 PKI に当てはまらない場合があります。",
+    "severity": {
+      "fatal": "致命的",
+      "error": "エラー",
+      "warning": "警告",
+      "notice": "通知",
+      "info": "情報"
+    }
   }
 }

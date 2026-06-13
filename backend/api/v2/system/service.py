@@ -32,6 +32,70 @@ def get_hsm_status():
         return error_response("HSM status check failed", 500)
 
 
+# Friendly, admin-facing labels for the registered scheduler tasks. Falls back
+# to the task's own description / a title-cased name when not listed here.
+_TASK_LABELS = {
+    'crl_auto_regen': 'CRL regeneration',
+    'audit_log_cleanup': 'Audit log cleanup',
+    'cert_expiry_alerts': 'Certificate expiry alerts',
+    'acme_auto_renewal': 'ACME auto-renewal',
+    'ski_aki_backfill': 'Certificate chain repair',
+    'cert_auto_renewal': 'Certificate auto-renewal',
+    'ocsp_cache_cleanup': 'OCSP cache cleanup',
+    'update_check': 'Update check',
+    'discovery_scan': 'Discovery scans',
+    'scheduled_reports': 'Scheduled reports',
+    'scheduled_backup': 'Scheduled backups',
+    'session_cleanup': 'Session cleanup',
+}
+
+
+@bp.route('/api/v2/system/scheduler', methods=['GET'])
+@require_auth(['read:settings'])
+def get_scheduler_tasks():
+    """List all registered scheduler tasks with their live status."""
+    try:
+        statuses = get_scheduler().get_all_tasks_status()
+        tasks = []
+        for name, st in statuses.items():
+            st = dict(st)
+            st['label'] = _TASK_LABELS.get(name, (st.get('description') or name.replace('_', ' ').title()))
+            tasks.append(st)
+        tasks.sort(key=lambda t: t['label'].lower())
+        warnings = sum(1 for t in tasks if t.get('last_error'))
+        return success_response(data={
+            'tasks': tasks,
+            'total': len(tasks),
+            'warnings': warnings,
+        })
+    except Exception as e:
+        logger.error(f"Failed to list scheduler tasks: {e}")
+        return error_response("Failed to list scheduler tasks", 500)
+
+
+@bp.route('/api/v2/system/scheduler/<task_name>/run', methods=['POST'])
+@require_auth(['admin:system'])
+def run_scheduler_task(task_name):
+    """Trigger an immediate run of a registered scheduler task."""
+    try:
+        scheduler = get_scheduler()
+        if task_name not in scheduler.get_all_tasks_status():
+            return error_response("Task not found", 404)
+        result = scheduler.run_task_now(task_name)
+        if result is None:
+            return error_response("Task not found", 404)
+        AuditService.log_action(
+            action='scheduler_task_run', resource_type='system',
+            resource_name=task_name, details=f"Manually ran scheduler task: {task_name}",
+            success=not bool(result.get('last_error')),
+        )
+        result['label'] = _TASK_LABELS.get(task_name, task_name.replace('_', ' ').title())
+        return success_response(data=result, message=f"Task '{task_name}' executed")
+    except Exception as e:
+        logger.error(f"Failed to run scheduler task {task_name}: {e}")
+        return error_response("Failed to run scheduler task", 500)
+
+
 @bp.route('/api/v2/system/chain-repair', methods=['GET'])
 @require_auth(['read:cas'])
 def get_chain_repair_status():

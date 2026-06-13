@@ -71,6 +71,7 @@ export {
 export { CertificateDetails } from './CertificateDetails'
 export { CertificateExtensions, SubjectAltNames } from './CertificateExtensions'
 export { CertificateCompareModal } from './CertificateCompareModal'
+export { CertificateLintModal } from './CertificateLintModal'
 export { TemplatePreviewModal } from './TemplatePreviewModal'
 export { CADetails } from './CADetails'
 export { CSRDetails } from './CSRDetails'

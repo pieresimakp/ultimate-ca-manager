@@ -4,6 +4,7 @@ import base64
 from datetime import timedelta
 from flask import request, g
 from auth.unified import require_auth
+from utils.db_transaction import safe_commit
 from utils.response import success_response, error_response
 from models import Certificate, CA, db
 from cryptography import x509
@@ -162,7 +163,9 @@ def renew_certificate(cert_id):
         cert.revoked_at = None
         cert.revoke_reason = None
 
-        db.session.commit()
+        ok, err = safe_commit(logger, "Failed to renew certificate")
+        if not ok:
+            return err
 
         # Audit log
         try:
@@ -177,13 +180,14 @@ def renew_certificate(cert_id):
         except Exception:
             pass
 
-        try:
-            on_certificate_renewed(cert_id, cert_id, cert.descr or cert.subject or f'Certificate #{cert_id}')
-        except Exception:
-            pass
+        username = g.current_user.username if hasattr(g, 'current_user') else 'system'
+        cert_dict = cert.to_dict()
+        cert_caref = cert.caref
+        from services.webhook_service import emit_cert_renewed
+        emit_cert_renewed(cert_dict, ca_refid=cert_caref, actor=username)
 
         return success_response(
-            data=cert.to_dict(),
+            data=cert_dict,
             message='Certificate renewed successfully'
         )
 

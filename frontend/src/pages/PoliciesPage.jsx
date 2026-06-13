@@ -550,7 +550,7 @@ export default function PoliciesPage() {
         title={editing ? t('policies.editPolicy') : t('policies.createPolicy')}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
           {/* Basic Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
@@ -584,11 +584,11 @@ export default function PoliciesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Select
                 label={t('policies.targetCA')}
-                value={formData.ca_id || ''}
-                onChange={(val) => setFormData(p => ({ ...p, ca_id: val ? parseInt(val) : null }))}
+                value={formData.ca_id?.toString() || ''}
+                onChange={(val) => setFormData(p => ({ ...p, ca_id: val ? parseInt(val, 10) : null }))}
                 options={[
                   { value: '', label: t('policies.allCAs') },
-                  ...cas.map(ca => ({ value: ca.id, label: ca.common_name })),
+                  ...cas.map(ca => ({ value: ca.id.toString(), label: ca.common_name })),
                 ]}
               />
               <Input
@@ -700,11 +700,11 @@ export default function PoliciesPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
                 <Select
                   label={t('policies.approvalGroup')}
-                  value={formData.approval_group_id || ''}
-                  onChange={(val) => setFormData(p => ({ ...p, approval_group_id: val ? parseInt(val) : null }))}
+                  value={formData.approval_group_id?.toString() || ''}
+                  onChange={(val) => setFormData(p => ({ ...p, approval_group_id: val ? parseInt(val, 10) : null }))}
                   options={[
                     { value: '', label: t('policies.selectGroup') },
-                    ...groups.map(g => ({ value: g.id, label: g.name })),
+                    ...groups.map(g => ({ value: g.id.toString(), label: g.name })),
                   ]}
                 />
                 <Input

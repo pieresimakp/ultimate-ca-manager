@@ -4,6 +4,7 @@ from .ldap_routes import _get_or_create_sso_user, _get_saml_auth
 from flask import request, redirect, session, Response
 from auth.unified import require_auth
 from utils.response import success_response, error_response
+from utils.db_transaction import safe_commit
 from models import db, User
 from models.sso import SSOProvider, SSOSession
 from services.audit_service import AuditService
@@ -237,6 +238,20 @@ def sso_callback(provider_type):
             if not user:
                 return redirect(f'/login?error={error_code or "user_creation_failed"}')
 
+            # SECURITY: Block disabled accounts (admin can disable SSO users locally)
+            if not user.active:
+                logger.warning(f"OAuth2 login blocked: user {username} is disabled")
+                AuditService.log_action(
+                    action='login_failure',
+                    resource_type='user',
+                    resource_id=user.id,
+                    resource_name=username,
+                    details=f'OAuth2 SSO login blocked: user disabled (via {provider.name})',
+                    success=False,
+                    username=username
+                )
+                return redirect('/login?error=account_disabled')
+
             # Create or update SSO session for audit
             session_id = userinfo.get('sub', username)
             sso_session = SSOSession.query.filter_by(session_id=session_id).first()
@@ -251,7 +266,9 @@ def sso_callback(provider_type):
                     expires_at=utc_now() + timedelta(hours=8)
                 )
                 db.session.add(sso_session)
-            db.session.commit()
+            ok, err = safe_commit(logger, "SSO login failed - session save error")
+            if not ok:
+                return redirect('/login?error=callback_error')
 
             # Establish Flask session (clear first to prevent session fixation)
             _sso_now = utc_now()
@@ -351,6 +368,20 @@ def sso_callback(provider_type):
             if not user:
                 return redirect(f'/login?error={error_code or "user_creation_failed"}')
 
+            # SECURITY: Block disabled accounts (admin can disable SSO users locally)
+            if not user.active:
+                logger.warning(f"SAML login blocked: user {username} is disabled")
+                AuditService.log_action(
+                    action='login_failure',
+                    resource_type='user',
+                    resource_id=user.id,
+                    resource_name=username,
+                    details=f'SAML SSO login blocked: user disabled (via {provider.name})',
+                    success=False,
+                    username=username
+                )
+                return redirect('/login?error=account_disabled')
+
             # Track SSO session
             sso_session = SSOSession.query.filter_by(session_id=name_id).first()
             if sso_session:
@@ -364,7 +395,9 @@ def sso_callback(provider_type):
                     expires_at=utc_now() + timedelta(hours=8)
                 )
                 db.session.add(sso_session)
-            db.session.commit()
+            ok, err = safe_commit(logger, "SSO login failed - session save error")
+            if not ok:
+                return redirect('/login?error=callback_error')
 
             # Establish Flask session (clear first to prevent session fixation)
             _saml_now = utc_now()

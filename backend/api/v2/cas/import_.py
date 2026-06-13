@@ -10,6 +10,7 @@ import traceback
 import uuid
 
 from auth.unified import require_auth
+from utils.db_transaction import safe_commit
 from utils.response import success_response, error_response, created_response
 from utils.file_validation import validate_upload, CERT_EXTENSIONS
 from services.import_service import (
@@ -106,7 +107,9 @@ def import_ca():
             existing_ca.valid_from = cert_info['valid_from']
             existing_ca.valid_to = cert_info['valid_to']
 
-            db.session.commit()
+            ok, err = safe_commit(logger, "Failed to update CA")
+            if not ok:
+                return err
             AuditService.log_action(
                 action='ca_updated',
                 resource_type='ca',
@@ -138,7 +141,9 @@ def import_ca():
         )
 
         db.session.add(ca)
-        db.session.commit()
+        ok, err = safe_commit(logger, "Failed to import CA")
+        if not ok:
+            return err
         AuditService.log_action(
             action='ca_imported',
             resource_type='ca',
@@ -148,16 +153,17 @@ def import_ca():
             success=True
         )
 
-        # Send notification for CA creation
-        try:
-            username = g.current_user.username if hasattr(g, 'current_user') else 'system'
-            NotificationService.on_ca_created(ca, username)
-        except Exception:
-            pass  # Non-blocking
+        # Single lifecycle event — bus fans out to webhook + email + WebSocket.
+        # Snapshot before emit: subscribers may commit and expire the instance.
+        username = g.current_user.username if hasattr(g, 'current_user') else 'system'
+        ca_dict = ca.to_dict()
+        ca_descr = ca.descr
+        from services.webhook_service import emit_ca_created
+        emit_ca_created(ca_dict, actor=username)
 
         return created_response(
-            data=ca.to_dict(),
-            message=f'CA "{ca.descr}" imported successfully'
+            data=ca_dict,
+            message=f'CA "{ca_descr}" imported successfully'
         )
 
     except ValueError as e:

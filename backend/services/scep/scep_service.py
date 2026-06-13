@@ -323,6 +323,12 @@ class SCEPService:
                 cert_obj = x509.load_pem_x509_certificate(
                     base64.b64decode(cert.crt), default_backend()
                 )
+                try:
+                    from services.webhook_service import emit_cert_issued
+                    if cert:
+                        emit_cert_issued(cert.to_dict(), ca_refid=cert.caref)
+                except Exception as e:
+                    logger.error(f"Webhook emit (SCEP issuance) failed: {e}")
                 logger.debug("SCEP: Returning SUCCESS response")
                 return self._create_cert_rep_success(
                     cert_obj, transaction_id, sender_nonce, signer_cert
@@ -569,6 +575,12 @@ class SCEPService:
         validity_days: int = 365,
     ) -> str:
         """Issue a certificate for the given SCEP request. Returns the cert refid."""
+        # Offline CAs must not sign (consistent with CSR/CRL/TSA signing paths)
+        if self.ca.offline:
+            raise ValueError(
+                f"CA is offline: {self.ca.offline_reason or 'no reason provided'}"
+            )
+
         cert_refid = str(uuid.uuid4())
         public_key = csr.public_key()
 

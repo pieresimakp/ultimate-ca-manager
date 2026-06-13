@@ -15,13 +15,7 @@ export default function AccountsTab({ accounts, selectedAccount, columns, search
       onRowClick={onSelectAccount}
       selectedRow={selectedAccount}
       getRowId={(row) => row.id}
-      pagination={{
-        page,
-        total: accounts.length,
-        perPage,
-        onChange: onPageChange,
-        onPerPageChange: (v) => { onPerPageChange(v) }
-      }}
+      pagination={true}
       emptyState={{
         icon: Key,
         title: t('acme.noAccounts'),

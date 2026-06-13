@@ -11,7 +11,7 @@
 
 > **UCM is a young and actively developed project.** Feedback, bug reports, and feature requests are very welcome! Feel free to [open an issue](https://github.com/NeySlim/ultimate-ca-manager/issues) — every report helps make UCM better.
 
-> **Latest release — v2.156** (2026-05-12): per-webhook custom authentication ([#116](https://github.com/NeySlim/ultimate-ca-manager/issues/116)) with five auth types (`none`, `bearer`, `basic`, `api_key`, `custom`), encrypted tokens at rest, and a live request-preview pane in the webhook form. See the [v2.156 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md).
+> **Latest release — v2.170** (2026-06-13): certificate conformance linting (pkilint/zlint, RFC 5280 + CA/Browser Forum profiles), ACME Renewal Information (ARI, RFC 9773), an opt-in bearer-gated Prometheus `/metrics` endpoint, per-webhook delivery history with manual retry, a background-task scheduler view, and scheduled encrypted backups. See the [v2.170 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md).
 
 ![Dashboard](docs/screenshots/dashboard-dark.png)
 
@@ -22,6 +22,7 @@
 ### PKI Core
 - **CA Management** -- Root and intermediate CAs, hierarchy view, import/export, **HSM-backed signing keys** (private key never leaves the HSM)
 - **Certificate Lifecycle** -- Issue, sign, revoke, renew, export (PEM, DER, PKCS#12, JKS), bulk operations
+- **Conformance Linting** -- per-certificate checks against RFC 5280 and CA/Browser Forum Baseline Requirements via pkilint (and zlint when available), informative-only
 - **CSR Management** -- Create, import, sign Certificate Signing Requests with **custom Extra EKU OIDs** (RFC 5280 §4.2.1.12)
 - **Certificate Templates** -- Predefined profiles for server, client, code signing, email
 - **Certificate Discovery** -- Network scanning, scan profiles, scheduled scans, certificate import
@@ -30,7 +31,7 @@
 - **SSH Certificates** -- SSH Certificate Authority management, sign host/user certificates, import CAs and certs, curl-friendly setup scripts
 
 ### Protocols
-- **ACME** -- RFC 8555, auto-enrollment, auto-renewal, DNS-01/HTTP-01/TLS-ALPN-01 challenges, wildcard support, **External Account Binding (EAB, RFC 8555 §7.3.4)**, **custom DNS resolvers** for split-horizon, ACME on internal/private IPs, proxy mode
+- **ACME** -- RFC 8555, auto-enrollment, auto-renewal, DNS-01/HTTP-01/TLS-ALPN-01 challenges, wildcard support, **External Account Binding (EAB, RFC 8555 §7.3.4)**, **Renewal Information (ARI, RFC 9773)**, **custom DNS resolvers** for split-horizon, ACME on internal/private IPs, proxy mode
 - **SCEP** -- RFC 8894 device auto-enrollment with approval workflows
 - **EST** -- RFC 7030 Enrollment over Secure Transport
 - **OCSP** -- RFC 6960 real-time certificate status
@@ -42,7 +43,7 @@
 - **HSM** -- SoftHSM included, PKCS#11, Azure Key Vault, Google Cloud KMS, OpenBao/Vault Transit; **HSM-backed CAs** with non-exportable signing keys
 - **Kubernetes / cert-manager** -- Reference manifests for ClusterIssuer (HTTP-01 + DNS-01 with EAB), sample Certificate, Secret template under `examples/kubernetes/cert-manager/`
 - **DNS Providers** -- Cloudflare, Route53, Azure DNS and more for ACME DNS-01 challenges
-- **Webhooks** -- Event-driven notifications for certificate lifecycle events (15+ event types)
+- **Webhooks** -- Event-driven notifications for certificate lifecycle events (15+ event types), **per-endpoint delivery history with manual retry**, durable async delivery queue with exponential backoff
 
 ### Security & Access
 - **Authentication** -- Password, WebAuthn/FIDO2, TOTP 2FA, mTLS, API keys
@@ -56,7 +57,9 @@
 - **Reports** -- Scheduled PDF reports, executive summaries, custom templates
 - **Certificate Toolbox** -- SSL checker, CSR/cert decoder, key matcher, format converter
 - **Email Notifications** -- SMTP with **OAuth2 (XOAUTH2)** for Gmail, Outlook.com & Microsoft 365, customizable HTML/text templates, certificate expiry alerts
-- **Backup & Restore** -- Manual and scheduled backups with retention policies
+- **Backup & Restore** -- Manual and scheduled encrypted backups with retention policies
+- **Prometheus Metrics** -- opt-in, bearer-gated `/metrics` endpoint exposing certificate, CA, scheduler, webhook and ACME counters
+- **Scheduler** -- admin view of background tasks (expiry checks, CRL refresh, webhook delivery, backups, auto-renewal) with status and run-now
 - **Software Updates** -- In-app update checker with one-click install
 - **Global Search** -- Cross-resource search and command palette (Ctrl+K)
 

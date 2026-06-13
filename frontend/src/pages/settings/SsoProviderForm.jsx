@@ -9,6 +9,17 @@ import SsoLdapFields from './sso/SsoLdapFields'
 import SsoOAuth2Fields from './sso/SsoOAuth2Fields'
 import SsoSamlFields from './sso/SsoSamlFields'
 
+// Stored as JSON array string in DB — display as comma-separated text
+const requiredGroupsToText = (raw) => {
+  if (!raw) return ''
+  if (Array.isArray(raw)) return raw.join(', ')
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed.join(', ')
+  } catch { /* legacy plain-text value */ }
+  return raw
+}
+
 export default function SsoProviderForm({ provider, forcedType, onSave, onCancel }) {
   const { t } = useTranslation()
   const { showSuccess, showError } = useNotification()
@@ -40,6 +51,8 @@ export default function SsoProviderForm({ provider, forcedType, onSave, onCancel
     ldap_username_attr: provider?.ldap_username_attr || 'uid',
     ldap_email_attr: provider?.ldap_email_attr || 'mail',
     ldap_fullname_attr: provider?.ldap_fullname_attr || 'cn',
+    ldap_required_groups: requiredGroupsToText(provider?.ldap_required_groups),
+    account_status_attr: provider?.account_status_attr || '',
     // OAuth2
     oauth2_client_id: provider?.oauth2_client_id || '',
     oauth2_client_secret: '',
@@ -149,6 +162,10 @@ export default function SsoProviderForm({ provider, forcedType, onSave, onCancel
     if (data.provider_type === 'oauth2') {
       data.oauth2_scopes = data.oauth2_scopes.split(/\s+/).filter(Boolean)
     }
+    if (data.provider_type === 'ldap') {
+      const groups = (data.ldap_required_groups || '').split(',').map(s => s.trim()).filter(Boolean)
+      data.ldap_required_groups = groups.length ? groups : null
+    }
     if (data.attribute_mapping) {
       data.attribute_mapping = Object.fromEntries(
         Object.entries(data.attribute_mapping).filter(([k, v]) => k && v)
@@ -217,7 +234,7 @@ export default function SsoProviderForm({ provider, forcedType, onSave, onCancel
   const sharedProps = { formData, handleChange, provider, testingConnection, connectionBadge, roleOptions, handleTestConnection }
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[75vh] overflow-y-auto">
+    <form onSubmit={handleSubmit} className="p-4 space-y-4">
       {/* General Settings */}
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-4">

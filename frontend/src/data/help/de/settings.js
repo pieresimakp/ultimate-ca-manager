@@ -5,6 +5,42 @@ export default {
     overview: 'Konfigurieren Sie alle Aspekte des UCM-Systems. Einstellungen sind nach Kategorien organisiert: Allgemein, Darstellung, E-Mail, Sicherheit, SSO, Sicherung, Audit, Datenbank, HTTPS, Updates und Webhooks.',
     sections: [
       {
+        title: "Prometheus-Metriken",
+        content: "Opt-in-Endpunkt /metrics, der Zähler (Zertifikate, CAs, Planer, Webhooks, ACME) im Prometheus-Format bereitstellt.",
+        items: [
+          { label: "Aktivieren", text: "Setzen Sie ein Metriken-Token unter Einstellungen › Allgemein; ohne Token liefert der Endpunkt 404 (deaktiviert)" },
+          { label: "Authentifizierung", text: "Scrapen mit Authorization: Bearer <Token>" },
+          { label: "Zähler", text: "ucm_certificates, ucm_certificate_authorities, ucm_scheduler_task_*, ucm_webhook_deliveries, ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Webhook-Zustellungsverlauf",
+        content: "Jeder Webhook-Endpunkt führt ein Zustellungsprotokoll mit Status, Versuchen und manuellem Wiederholen.",
+        items: [
+          { label: "Status", text: "pending / delivered / failed, mit letztem HTTP-Code und Fehler" },
+          { label: "Wiederholen", text: "Ein fehlgeschlagenes oder bereits zugestelltes Ereignis manuell erneut einreihen" },
+          { label: "Asynchron", text: "Zustellungen laufen aus einer dauerhaften Warteschlange mit exponentiellem Backoff (bis zu 5 Versuche)" },
+        ]
+      },
+      {
+        title: "Planer-Ansicht",
+        content: "Einstellungen › System listet die Hintergrundaufgaben mit Status und letzter Ausführung auf.",
+        items: [
+          { label: "Aufgaben", text: "Ablaufprüfungen, CRL-Aktualisierung, Webhook-Zustellung, geplante Backups, Auto-Erneuerung usw." },
+          { label: "Jetzt ausführen", text: "Jede Aufgabe bei Bedarf auslösen" },
+          { label: "Sichtbarkeit", text: "Letzte Ausführung, letzte Dauer und Fehleranzahl je Aufgabe" },
+        ]
+      },
+      {
+        title: "Geplante Backups",
+        content: "Automatische, verschlüsselte Datenbank-Backups in konfigurierbarer Frequenz mit Aufbewahrung.",
+        items: [
+          { label: "Frequenz", text: "Täglich / wöchentlich / monatlich" },
+          { label: "Aufbewahrung", text: "Die N neuesten Backups behalten; ältere werden bereinigt" },
+          { label: "Verschlüsselung", text: "Backups werden mit dem konfigurierten Backup-Passwort verschlüsselt" },
+        ]
+      },
+      {
         title: 'Kategorien',
         items: [
           { label: 'Allgemein', text: 'Instanzname, Hostname und systemweite Standardwerte' },
@@ -234,6 +270,38 @@ HTTP-Webhooks konfigurieren, um externe Systeme bei Ereignissen zu benachrichtig
 
 ### Testen
 Klicken Sie auf **Testen**, um ein Beispielereignis an die Webhook-URL zu senden und die Erreichbarkeit zu überprüfen.
+## Prometheus-Metriken
+
+Opt-in-Endpunkt **\`/metrics\`** mit Token-Schutz.
+
+- Aktivieren durch Setzen eines Metriken-Tokens (Einstellungen › Allgemein); ohne Token → 404
+- Scrapen mit Header \`Authorization: Bearer <Token>\`
+- Stellt \`ucm_certificates\`, \`ucm_certificate_authorities\`, \`ucm_scheduler_task_*\`, \`ucm_webhook_deliveries\`, \`ucm_acme_*\` bereit
+
+## Webhook-Zustellungsverlauf
+
+Öffnen Sie den Verlauf (Uhr-Symbol) an einem Webhook, um seine Zustellungen zu sehen.
+
+- Status **pending / delivered / failed** mit letztem HTTP-Code und Fehler
+- Eine Zustellung manuell **wiederholen**
+- Dauerhafte Warteschlange mit exponentiellem Backoff (bis zu 5 Versuche)
+
+## Planer-Ansicht
+
+Einstellungen › System zeigt die Hintergrundaufgaben.
+
+- Aufgabenliste mit **Status**, **letzter Ausführung**, **Dauer** und **Fehlern**
+- **Jetzt ausführen** für jede Aufgabe
+- Umfasst Ablauf, CRL, Webhook-Zustellung, Backups, Auto-Erneuerung…
+
+## Geplante Backups
+
+Einstellungen › Sicherung ermöglicht automatische Backups.
+
+- Frequenz **täglich / wöchentlich / monatlich**
+- **Aufbewahrung**: die N neuesten behalten, ältere bereinigen
+- Backups mit dem Backup-Passwort **verschlüsselt**
+
 `
   }
 }

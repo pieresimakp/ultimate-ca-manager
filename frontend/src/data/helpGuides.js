@@ -334,6 +334,15 @@ Select two certificates and click **Compare** to see a side-by-side diff of thei
 - **CA filter** — Show certificates from a specific CA
 - **Text search** — Search by CN, serial number, or SAN
 - **Sorting** — By name, expiry date, creation date, status
+
+## Conformance linting
+
+The **Lint** action (certificate detail) checks X.509 standards conformance. Informative only.
+
+- **RFC 5280** — IETF X.509 profile, always relevant
+- **CA/Browser Forum** — Baseline Requirements for public TLS certs (expect noise on internal PKI)
+- Severities: fatal / error / warning / notice / info
+- Engine: pkilint (+ zlint when present) — optional server dependency, degrades gracefully when absent
 `
   },
 
@@ -899,6 +908,32 @@ Browse all certificate issuance orders:
 - Signing CA used
 - Issuance timestamp
 
+## IP Address Certificates (RFC 8738)
+
+The local ACME server can issue certificates for **IP addresses** (IPv4 and IPv6), not only DNS names. This is useful for internal services, appliances, and hosts addressed directly by IP.
+
+### Ordering an IP certificate
+Use the \`ip\` identifier type in the ACME order:
+\`\`\`json
+{
+  "identifiers": [
+    { "type": "ip", "value": "192.0.2.10" },
+    { "type": "ip", "value": "2001:db8::1" }
+  ]
+}
+\`\`\`
+Mixed DNS + IP orders are also supported.
+
+### Validation
+- **HTTP-01** and **TLS-ALPN-01** are the only challenges offered for IP identifiers. **DNS-01 is forbidden** for IPs by RFC 8738.
+- **HTTP-01** connects directly to the IP (IPv6 literals are bracketed, e.g. \`http://[2001:db8::1]/...\`).
+- **TLS-ALPN-01** uses the reverse-DNS form of the IP (\`in-addr.arpa\` / \`ip6.arpa\`) as the SNI hostname.
+
+### Issued certificate
+The signed certificate contains an **iPAddress** SubjectAltName entry for each validated IP.
+
+> 💡 Internal addresses (RFC1918, loopback) validate out of the box — UCM's primary deployment model. Cloud-metadata IPs remain blocked.
+
 ## Using certbot
 
 \`\`\`
@@ -937,6 +972,14 @@ acme.sh --issue \\
 \`\`\`
 
 > ⚠ For internal ACME, clients must trust the UCM CA. Install the Root CA certificate in the client's trust store.
+
+## Renewal Information (ARI, RFC 9773)
+
+The local ACME server advertises \`renewalInfo\` in its directory and serves a per-certificate **suggested renewal window**.
+
+- Window centered before expiry → renewals spread over time
+- Revoked certificate → window in the past (renew now)
+- Unauthenticated GET on \`/acme/renewalInfo/<certID>\`
 `
   },
 
@@ -1669,6 +1712,38 @@ Tokens are stored encrypted and never returned in the UI.
 
 ### Testing
 Click **Test** to send a sample event to the webhook URL and verify it's reachable.
+
+## Prometheus metrics
+
+Opt-in, token-gated **\`/metrics\`** endpoint.
+
+- Enable it by setting a metrics token (Settings › General); without a token → 404
+- Scrape with the \`Authorization: Bearer <token>\` header
+- Exposes \`ucm_certificates\`, \`ucm_certificate_authorities\`, \`ucm_scheduler_task_*\`, \`ucm_webhook_deliveries\`, \`ucm_acme_*\`
+
+## Webhook delivery history
+
+Open the history (clock icon) on a webhook to see its deliveries.
+
+- **pending / delivered / failed** statuses with last HTTP code and error
+- **Retry** a delivery manually
+- Durable queue with exponential backoff (up to 5 attempts)
+
+## Scheduler view
+
+Settings › System surfaces the background tasks.
+
+- Task list with **status**, **last run**, **duration** and **failures**
+- **Run now** on any task
+- Covers expiry, CRL, webhook delivery, backups, auto-renewal…
+
+## Scheduled backups
+
+Settings › Backup enables automatic backups.
+
+- **Daily / weekly / monthly** cadence
+- **Retention**: keep the N most recent, prune older ones
+- Backups are **encrypted** with the backup password
 `
   },
 

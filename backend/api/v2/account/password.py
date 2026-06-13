@@ -1,4 +1,4 @@
-import re
+import json
 import logging
 
 from flask import request, g
@@ -8,6 +8,7 @@ from services.audit_service import AuditService
 from utils.response import success_response, error_response
 from utils.db_transaction import safe_commit
 from auth.unified import require_auth
+from security.password_policy import validate_password, is_admin_bypass_enabled
 
 from . import bp
 
@@ -43,18 +44,14 @@ def change_password():
     if not new_password:
         return error_response('New password is required', 400)
 
-    if len(new_password) < 8:
-        return error_response('Password must be at least 8 characters', 400)
-
-    # Password complexity check
-    if not re.search(r'[A-Z]', new_password):
-        return error_response('Password must contain at least one uppercase letter', 400)
-    if not re.search(r'[a-z]', new_password):
-        return error_response('Password must contain at least one lowercase letter', 400)
-    if not re.search(r'[0-9]', new_password):
-        return error_response('Password must contain at least one digit', 400)
-    if not re.search(r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?/~`]', new_password):
-        return error_response('Password must contain at least one special character', 400)
+    # Admin bypass: admin can skip policy validation if enabled
+    is_admin = user.role == 'admin'
+    if not (is_admin and is_admin_bypass_enabled()):
+        is_valid, errors = validate_password(new_password)
+        if not is_valid:
+            first = errors[0]
+            return error_response(first.get('message', 'Invalid password'), 400,
+                                  details={'i18n_key': first.get('key'), 'i18n_values': first.get('values', {})})
 
     # Skip current-password verification only when the SERVER says so
     if not skip_current_check:
@@ -68,13 +65,24 @@ def change_password():
     if not ok:
         return _err
 
+    # SECURITY: Invalidate all active sessions after password change
+    # This forces re-authentication across all devices/browsers
+    from models.user import UserSession
+    sessions_deleted = UserSession.query.filter_by(user_id=user.id).delete()
+    if sessions_deleted > 0:
+        ok, _err = safe_commit(logger, "Failed to invalidate user sessions after password change")
+        if not ok:
+            logger.warning(f"Failed to delete {sessions_deleted} sessions for user {user.username}")
+        else:
+            logger.info(f"Invalidated {sessions_deleted} sessions for user {user.username} after password change")
+
     # Audit log
     AuditService.log_action(
         action='password_change',
         resource_type='user',
         resource_id=str(user.id),
         resource_name=user.username,
-        details=f'Password changed by user: {user.username}',
+        details=f'Password changed by user: {user.username} ({sessions_deleted} sessions invalidated)',
         success=True
     )
 

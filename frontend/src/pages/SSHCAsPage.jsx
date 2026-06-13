@@ -607,13 +607,7 @@ export default function SSHCAsPage() {
           rowActions={rowActions}
           sortable
           defaultSort={{ key: 'descr', direction: 'asc' }}
-          pagination={{
-            page,
-            total: filteredCAs.length,
-            perPage,
-            onChange: setPage,
-            onPerPageChange: (v) => { setPerPage(v); setPage(1) }
-          }}
+          pagination={true}
           emptyIcon={Key}
           emptyTitle={t('sshCas.noData')}
           emptyDescription={t('sshCas.noDataDescription')}

@@ -28,7 +28,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -72,7 +72,7 @@ jobs:
       deb_version: ${{ steps.version.outputs.deb_version }}
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       
@@ -91,7 +91,7 @@ jobs:
           echo "Building version: $VERSION (DEB: $DEB_VERSION)"
       
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -100,9 +100,12 @@ jobs:
       - name: Stamp release version
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          # Normalize semver for npm: 2.161-rc1 -> 2.161.0-rc1
+          STAMP_VERSION=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+)-([a-zA-Z0-9]+)/\1.0-\2/')
           printf '%s' "$VERSION" > VERSION
           export VERSION
-          node -e "const fs=require('fs'); const v=process.env.VERSION; for (const f of ['frontend/package.json','frontend/package-lock.json']) { const p=JSON.parse(fs.readFileSync(f,'utf8')); p.version=v; if (p.packages && p.packages['']) p.packages[''].version=v; fs.writeFileSync(f, JSON.stringify(p,null,2)+'\n'); }"
+          export STAMP_VERSION
+          node -e "const fs=require('fs'); const v=process.env.STAMP_VERSION; for (const f of ['frontend/package.json','frontend/package-lock.json']) { const p=JSON.parse(fs.readFileSync(f,'utf8')); p.version=v; if (p.packages && p.packages['']) p.packages[''].version=v; fs.writeFileSync(f, JSON.stringify(p,null,2)+'\n'); }"
 
       - name: Build frontend
         run: |
@@ -143,7 +146,7 @@ jobs:
           done
       
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deb-package
           path: |
@@ -159,10 +162,10 @@ jobs:
     needs: build-deb
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -171,9 +174,10 @@ jobs:
       - name: Stamp release version
         run: |
           VERSION="${{ needs.build-deb.outputs.version }}"
+          STAMP_VERSION=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+)-([a-zA-Z0-9]+)/\1.0-\2/')
           printf '%s' "$VERSION" > VERSION
-          export VERSION
-          node -e "const fs=require('fs'); const v=process.env.VERSION; for (const f of ['frontend/package.json','frontend/package-lock.json']) { const p=JSON.parse(fs.readFileSync(f,'utf8')); p.version=v; if (p.packages && p.packages['']) p.packages[''].version=v; fs.writeFileSync(f, JSON.stringify(p,null,2)+'\n'); }"
+          export VERSION STAMP_VERSION
+          node -e "const fs=require('fs'); const v=process.env.STAMP_VERSION; for (const f of ['frontend/package.json','frontend/package-lock.json']) { const p=JSON.parse(fs.readFileSync(f,'utf8')); p.version=v; if (p.packages && p.packages['']) p.packages[''].version=v; fs.writeFileSync(f, JSON.stringify(p,null,2)+'\n'); }"
 
       - name: Build frontend
         run: |
@@ -229,7 +233,7 @@ jobs:
             '
       
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rpm-package
           path: /tmp/rpm-output/*.rpm
@@ -243,10 +247,10 @@ jobs:
     needs: build-deb
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -255,9 +259,10 @@ jobs:
       - name: Stamp release version
         run: |
           VERSION="${{ needs.build-deb.outputs.version }}"
+          STAMP_VERSION=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+)-([a-zA-Z0-9]+)/\1.0-\2/')
           printf '%s' "$VERSION" > VERSION
-          export VERSION
-          node -e "const fs=require('fs'); const v=process.env.VERSION; for (const f of ['frontend/package.json','frontend/package-lock.json']) { const p=JSON.parse(fs.readFileSync(f,'utf8')); p.version=v; if (p.packages && p.packages['']) p.packages[''].version=v; fs.writeFileSync(f, JSON.stringify(p,null,2)+'\n'); }"
+          export VERSION STAMP_VERSION
+          node -e "const fs=require('fs'); const v=process.env.STAMP_VERSION; for (const f of ['frontend/package.json','frontend/package-lock.json']) { const p=JSON.parse(fs.readFileSync(f,'utf8')); p.version=v; if (p.packages && p.packages['']) p.packages[''].version=v; fs.writeFileSync(f, JSON.stringify(p,null,2)+'\n'); }"
 
       - name: Build frontend
         run: |
@@ -271,27 +276,27 @@ jobs:
           echo "name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
       
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
@@ -301,7 +306,7 @@ jobs:
             type=raw,value=latest,enable=${{ !contains(github.ref, 'rc') && !contains(github.ref, 'beta') && !contains(github.ref, 'alpha') && !contains(github.ref, 'dev') }}
       
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -314,7 +319,7 @@ jobs:
             VERSION=${{ needs.build-deb.outputs.version }}
 
       - name: Update Docker Hub description
-        uses: peter-evans/dockerhub-description@v4
+        uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -331,18 +336,18 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       
       - name: Download DEB artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: deb-package
           path: ./artifacts
       
       - name: Download RPM artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: rpm-package
           path: ./artifacts
@@ -481,7 +486,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body_path: notes.md
           draft: false

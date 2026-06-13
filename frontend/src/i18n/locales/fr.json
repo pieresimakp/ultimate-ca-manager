@@ -415,8 +415,23 @@
       "secretTitle": "Identifiant EAB généré",
       "secretWarningTitle": "Sauvegardez la clé HMAC maintenant",
       "secretWarning": "C'est la seule fois où la clé HMAC sera affichée. Après fermeture de cette boîte de dialogue, elle ne pourra plus être récupérée.",
-      "secretConfirm": "J'ai sauvegardé les identifiants"
-    }
+      "secretConfirm": "J'ai sauvegardé les identifiants",
+      "notes": "Notes",
+      "notesPlaceholder": "Ajouter des notes...",
+      "notesSaved": "Notes sauvegardées",
+      "notesSaveFailed": "Échec de la sauvegarde des notes",
+      "editNotesTitle": "Modifier les notes",
+      "confirmDelete": "Supprimer définitivement le justificatif EAB {{kid}} ? Cette action est irréversible.",
+      "deleteTitle": "Supprimer le justificatif EAB",
+      "delete": "Supprimer",
+      "deletedSuccess": "Justificatif EAB supprimé",
+      "deleteFailed": "Échec de la suppression du justificatif EAB"
+    },
+    "termsOfServiceTitlePlaceholder": "Titre des CGU (laisser vide pour masquer)",
+    "termsOfServiceBodyPlaceholder": "Rédigez vos conditions ici...\n\nSupporte : **gras**, *italique*, [liens](url), - listes\n\nUtilisez des lignes vides pour les paragraphes.",
+    "termsOfServiceHelper": "Texte brut avec formatage type markdown. Utilisez des lignes vides pour les paragraphes.",
+    "termsOfServicePreview": "Aperçu",
+    "termsOfServiceUrl": "URL des CGU"
   },
   "audit": {
     "event": "Événement",
@@ -526,7 +541,9 @@
     "resetFailed": "Échec de la réinitialisation. Le lien a peut-être expiré.",
     "resetting": "Réinitialisation...",
     "checkEmailDescBefore": "Si un compte existe avec",
-    "checkEmailDescAfter": ", vous recevrez un lien de réinitialisation sous peu."
+    "checkEmailDescAfter": ", vous recevrez un lien de réinitialisation sous peu.",
+    "accountDisabled": "Ce compte a été désactivé",
+    "samlValidationFailed": "L'authentification SAML a échoué"
   },
   "cas": {
     "parentCA": "AC parente",
@@ -2041,7 +2058,8 @@
       "about": "À propos",
       "microsoftCA": "Microsoft CA",
       "ct": "CT",
-      "autoRenewal": "Renouvellement auto"
+      "autoRenewal": "Renouvellement auto",
+      "scheduler": "Planificateur"
     },
     "systemNameHelper": "Nom d'affichage du système UCM",
     "baseUrl": "URL de base",
@@ -2416,7 +2434,21 @@
     "autoRenewalRunSuccess": "Renouvellement terminé : {{renewed}} renouvelés, {{failed}} échoués",
     "autoRenewalRunFailed": "Échec du renouvellement automatique",
     "autoRenewalSettingsUpdated": "Paramètres de renouvellement automatique mis à jour",
-    "autoRenewalSettingsFailed": "Échec de la mise à jour des paramètres de renouvellement"
+    "autoRenewalSettingsFailed": "Échec de la mise à jour des paramètres de renouvellement",
+    "metrics": {
+      "title": "Métriques Prometheus",
+      "subtitle": "Endpoint /metrics optionnel pour la supervision",
+      "token": "Jeton de métriques",
+      "tokenPlaceholder": "Saisissez ou générez un jeton bearer pour activer",
+      "tokenRotatePlaceholder": "Saisissez un nouveau jeton pour le faire tourner (l'actuel est conservé)",
+      "tokenHelper": "Scrapez /metrics avec l'en-tête Authorization: Bearer <jeton>. Le jeton n'est affiché qu'ici — copiez-le maintenant.",
+      "generate": "Générer",
+      "enable": "Activer",
+      "rotate": "Renouveler",
+      "disable": "Désactiver",
+      "enabled": "Endpoint de métriques activé",
+      "disabled": "Endpoint de métriques désactivé"
+    }
   },
   "sso": {
     "subtitle": "Configurez des fournisseurs LDAP, OAuth2 ou SAML pour une authentification centralisée",
@@ -2530,6 +2562,9 @@
     "testMappingNotFound": "Utilisateur non trouvé dans LDAP",
     "testMappingGroups": "Groupes trouvés",
     "testMappingResolvedRole": "Rôle résolu",
+    "testMappingAccess": "Accès connexion",
+    "testMappingAccessAllowed": "Autorisé",
+    "testMappingAccessDenied": "Refusé (hors groupes requis)",
     "testMappingNoGroups": "Aucun groupe trouvé",
     "testConnectionSuccess": "Connexion réussie",
     "testConnectionFailed": "Échec de la connexion",
@@ -2537,6 +2572,10 @@
     "connectionSection": "Connexion",
     "userSearchSection": "Recherche utilisateur",
     "groupsRolesSection": "Groupes et mapping des rôles",
+    "requiredGroups": "Groupes requis (refus par défaut)",
+    "requiredGroupsHelp": "Liste de groupes LDAP/AD séparés par des virgules. Les utilisateurs doivent appartenir à au moins un groupe pour se connecter. Laisser vide pour autoriser tous les utilisateurs authentifiés.",
+    "requiredGroupsPlaceholder": "ex. : PKI-Admins, PKI-Users, pki-viewers",
+    "accountStatusAttr": "Attribut d'état du compte",
     "provisioningSection": "Provisionnement utilisateur",
     "idpSection": "Fournisseur d'identité (IdP)",
     "spSection": "Endpoints Service Provider (SP)",
@@ -2574,7 +2613,8 @@
     },
     "syncRoleOnLogin": "Synchroniser le rôle depuis le SSO à chaque connexion",
     "syncRoleOnLoginHelp": "Si activé, le rôle est re-synchronisé depuis votre mappage de rôles à chaque connexion. Les utilisateurs sans correspondance gardent leur rôle UCM. Si désactivé (par défaut), le rôle est défini uniquement à la création de l'utilisateur puis géré dans UCM.",
-    "defaultRoleHelp": "Appliqué uniquement à la création automatique d'un utilisateur lors de sa première connexion."
+    "defaultRoleHelp": "Appliqué uniquement à la création automatique d'un utilisateur lors de sa première connexion.",
+    "accountStatusAttrHelp": "Attribut LDAP qui indique si un compte est désactivé. Valeurs courantes : 'description', 'userAccountControl', 'accountStatus'. Laisser vide pour désactiver cette vérification."
   },
   "templates": {
     "template": "Modèle",
@@ -2632,7 +2672,18 @@
     "subtitle_other": "{{count}} modèles",
     "subtitle": "{{count}} modèles de certificats",
     "validityDays": "{{count}} jours",
-    "validityDays_one": "{{count}} jour"
+    "validityDays_one": "{{count}} jour",
+    "showAllTemplates": "Afficher tous les {{count}} modèles",
+    "showPinnedOnly": "Afficher uniquement les épinglés",
+    "pinToCA": "Épingler à la CA",
+    "unpinFromCA": "Détacher de la CA",
+    "pinned": "Épinglé",
+    "noPinnedTemplates": "Aucun modèle épinglé pour cette CA",
+    "managePins": "Gérer les épinglages CA",
+    "pinSuccess": "Modèle épinglé à la CA",
+    "unpinSuccess": "Modèle détaché de la CA",
+    "selectCA": "Sélectionner une autorité de certification",
+    "pinnedCount": "{{count}} sur {{total}} modèles épinglés"
   },
   "time": {
     "today": "Aujourd'hui",
@@ -2929,6 +2980,24 @@
         "headerNameRequired": "Header name is required",
         "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
         "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    },
+    "deliveries": {
+      "title": "Livraisons — {{name}}",
+      "loadFailed": "Echec du chargement des livraisons",
+      "requeued": "Livraison reprogrammee",
+      "retryFailed": "Echec de la reprogrammation",
+      "empty": "Aucune livraison",
+      "event": "Evenement",
+      "statusCol": "Statut",
+      "attempts": "Tentatives",
+      "when": "Quand",
+      "next": "prochaine",
+      "retry": "Rejouer",
+      "status": {
+        "pending": "En attente",
+        "delivered": "Livree",
+        "failed": "Echouee"
       }
     }
   },
@@ -3483,7 +3552,9 @@
       "jks": "JKS (Java KeyStore)"
     },
     "formatJksDesc": "Java KeyStore, certificat + clé",
-    "jksNote": "JKS inclut toujours la clé privée"
+    "jksNote": "JKS inclut toujours la clé privée",
+    "pkcs12Title": "Exporter PKCS#12",
+    "pkcs12PasswordPrompt": "Entrez le mot de passe pour le fichier PKCS#12"
   },
   "userCertificates": {
     "title": "Certificats Utilisateurs",
@@ -4102,5 +4173,64 @@
     "preset": "Préréglage",
     "savePreset": "Sauvegarder le préréglage",
     "managePresets": "Gérer les préréglages"
+  },
+  "password_policy": {
+    "required": "Le mot de passe est requis",
+    "minLength": "Le mot de passe doit contenir au moins {{min_length}} caractères",
+    "maxLength": "Le mot de passe doit contenir au maximum {{max_length}} caractères",
+    "uppercase": "Le mot de passe doit contenir au moins une majuscule",
+    "lowercase": "Le mot de passe doit contenir au moins une minuscule",
+    "digit": "Le mot de passe doit contenir au moins un chiffre",
+    "special": "Le mot de passe doit contenir au moins un caractère spécial ({{special_chars}})",
+    "common": "Mot de passe trop courant, choisissez-en un plus complexe",
+    "username": "Le mot de passe ne peut pas contenir votre nom d'utilisateur",
+    "similar": "Le mot de passe est trop similaire au nom d'utilisateur",
+    "sequential": "Le mot de passe ne peut pas contenir 4 caractères séquentiels ou plus",
+    "repeated": "Le mot de passe ne peut pas contenir 4 caractères répétés ou plus",
+    "rules": {
+      "minLength": "Au moins {{min_length}} caractères",
+      "uppercase": "Au moins une majuscule (A-Z)",
+      "lowercase": "Au moins une minuscule (a-z)",
+      "digit": "Au moins un chiffre (0-9)",
+      "special": "Au moins un caractère spécial ({{special_chars}})"
+    }
+  },
+  "scheduler": {
+    "title": "Planificateur",
+    "subtitle": "Taches de fond et leur statut",
+    "tasksTitle": "Taches de fond",
+    "runNow": "Executer",
+    "taskRan": "Tache « {{name}} » executee",
+    "runFailed": "Echec de l'execution de la tache",
+    "loadFailed": "Echec du chargement des taches",
+    "noTasks": "Aucune tache planifiee",
+    "warningsCount": "{{count}} avertissement(s)",
+    "colTask": "Tache",
+    "colSchedule": "Frequence",
+    "colLastRun": "Derniere exec.",
+    "colNextRun": "Prochaine exec.",
+    "colDuration": "Duree",
+    "colRuns": "Exec."
+  },
+  "lint": {
+    "action": "Linter",
+    "title": "Analyse de conformité — {{name}}",
+    "titleGeneric": "Analyse de conformité",
+    "subtitle": "Vérifie ce certificat au regard des standards X.509 (informatif uniquement).",
+    "profile_rfc5280": "RFC 5280",
+    "profile_cabf": "CA/Browser Forum",
+    "loadFailed": "Échec de l'analyse",
+    "unavailable": "Aucun linter de certificat n'est installé sur le serveur",
+    "unavailableHint": "Installez pkilint sur le serveur pour activer l'analyse.",
+    "clean": "Aucun problème détecté",
+    "detectedType": "Type de certificat détecté",
+    "cabfNote": "Les règles Baseline Requirements visent les certificats TLS publics ; certains résultats peuvent ne pas s'appliquer à une PKI interne.",
+    "severity": {
+      "fatal": "Fatal",
+      "error": "Erreur",
+      "warning": "Avertissement",
+      "notice": "Remarque",
+      "info": "Info"
+    }
   }
 }

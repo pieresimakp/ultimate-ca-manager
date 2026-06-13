@@ -569,7 +569,9 @@
     "resetFailed": "重置失败。链接可能已过期。",
     "resetting": "重置中...",
     "checkEmailDescBefore": "如果存在与",
-    "checkEmailDescAfter": " 关联的账户，您将很快收到密码重置链接。"
+    "checkEmailDescAfter": " 关联的账户，您将很快收到密码重置链接。",
+    "accountDisabled": "此帐户已被禁用",
+    "samlValidationFailed": "SAML 身份验证失败"
   },
   "dashboard": {
     "goodMorning": "早上好",
@@ -999,7 +1001,18 @@
     "subtitle_other": "{{count}} 个模板",
     "subtitle": "{{count}} 个证书模板",
     "validityDays": "{{count}}天",
-    "validityDays_one": "{{count}} day"
+    "validityDays_one": "{{count}} day",
+    "showAllTemplates": "Show all {{count}} templates",
+    "showPinnedOnly": "Show pinned only",
+    "pinToCA": "Pin to CA",
+    "unpinFromCA": "Unpin from CA",
+    "pinned": "Pinned",
+    "noPinnedTemplates": "No pinned templates for this CA",
+    "managePins": "Manage CA Pins",
+    "pinSuccess": "Template pinned to CA",
+    "unpinSuccess": "Template unpinned from CA",
+    "selectCA": "Select a Certificate Authority",
+    "pinnedCount": "{{count}} of {{total}} templates pinned"
   },
   "users": {
     "createUser": "创建用户",
@@ -1361,8 +1374,23 @@
       "secretTitle": "EAB 凭据已生成",
       "secretWarningTitle": "现在保存 HMAC 密钥",
       "secretWarning": "HMAC 密钥仅此一次显示。关闭此对话框后将无法找回。",
-      "secretConfirm": "我已保存凭据"
-    }
+      "secretConfirm": "我已保存凭据",
+      "notes": "备注",
+      "notesPlaceholder": "添加备注...",
+      "notesSaved": "备注已保存",
+      "notesSaveFailed": "保存备注失败",
+      "editNotesTitle": "编辑备注",
+      "confirmDelete": "永久删除 EAB 凭据 {{kid}}？此操作无法撤销。",
+      "deleteTitle": "删除 EAB 凭据",
+      "delete": "删除",
+      "deletedSuccess": "EAB 凭据已删除",
+      "deleteFailed": "删除 EAB 凭据失败"
+    },
+    "termsOfServiceTitlePlaceholder": "服务条款（留空隐藏）",
+    "termsOfServiceBodyPlaceholder": "在此输入条款...\n\n支持：**加粗**, *斜体*, [链接](url), - 列表\n\n空行分隔段落。",
+    "termsOfServiceHelper": "纯文本，支持 Markdown 格式。空行分隔段落。",
+    "termsOfServicePreview": "预览",
+    "termsOfServiceUrl": "服务条款 URL"
   },
   "scep": {
     "title": "SCEP协议",
@@ -2011,7 +2039,8 @@
       "about": "关于",
       "microsoftCA": "Microsoft CA",
       "ct": "CT",
-      "autoRenewal": "自动续订"
+      "autoRenewal": "自动续订",
+      "scheduler": "调度器"
     },
     "testRecipient": "测试收件人",
     "testRecipientRequired": "请输入测试收件人电子邮件地址",
@@ -2218,7 +2247,21 @@
     "autoRenewalRunSuccess": "自动续订完成: 已续订 {{renewed}} 个，失败 {{failed}} 个",
     "autoRenewalRunFailed": "自动续订执行失败",
     "autoRenewalSettingsUpdated": "自动续订设置已更新",
-    "autoRenewalSettingsFailed": "自动续订设置更新失败"
+    "autoRenewalSettingsFailed": "自动续订设置更新失败",
+    "metrics": {
+      "title": "Prometheus 指标",
+      "subtitle": "用于监控的可选 /metrics 端点",
+      "token": "指标令牌",
+      "tokenPlaceholder": "输入或生成 bearer 令牌以启用",
+      "tokenRotatePlaceholder": "输入新令牌以轮换（保留当前令牌）",
+      "tokenHelper": "使用 Authorization: Bearer <令牌> 标头抓取 /metrics。令牌仅在此显示——请立即复制。",
+      "generate": "生成",
+      "enable": "启用",
+      "rotate": "轮换",
+      "disable": "禁用",
+      "enabled": "指标端点已启用",
+      "disabled": "指标端点已禁用"
+    }
   },
   "account": {
     "profile": "个人资料",
@@ -2591,6 +2634,10 @@
     "spMetadataXmlDesc": "将此URL提供给您的IdP以进行自动SP配置",
     "attributeRoleMappingSection": "属性和角色映射",
     "groupsRolesSection": "组和角色映射",
+    "requiredGroups": "必需组（默认拒绝）",
+    "requiredGroupsHelp": "以逗号分隔的 LDAP/AD 组列表。用户必须属于至少一个组才能登录。留空则允许所有已认证用户。",
+    "requiredGroupsPlaceholder": "例如：PKI-Admins, PKI-Users, pki-viewers",
+    "accountStatusAttr": "账户状态属性",
     "provisioningSection": "用户配置",
     "userSearchSection": "用户搜索",
     "testConnection": "测试连接",
@@ -2605,6 +2652,9 @@
     "testMappingNoGroups": "未找到组",
     "testMappingNotFound": "在LDAP中未找到用户",
     "testMappingResolvedRole": "解析的角色",
+    "testMappingAccess": "登录访问",
+    "testMappingAccessAllowed": "允许",
+    "testMappingAccessDenied": "拒绝（不在必需的组中）",
     "testMappingFailed": "映射测试失败",
     "oauth2Preset": "提供者预设",
     "oauth2PresetHelp": "选择预设以自动填充常见提供者的OAuth2/OIDC端点。",
@@ -2639,7 +2689,8 @@
     },
     "syncRoleOnLogin": "每次登录时从 SSO 同步角色",
     "syncRoleOnLoginHelp": "启用后，每次登录时都会从您的角色映射重新同步角色。没有匹配映射的用户将保留其 UCM 角色。禁用时（默认），角色仅在创建用户时设置，之后在 UCM 中管理。",
-    "defaultRoleHelp": "仅在首次登录时自动创建用户时应用。"
+    "defaultRoleHelp": "仅在首次登录时自动创建用户时应用。",
+    "accountStatusAttrHelp": "指示帐户是否被禁用的 LDAP 属性。常见值：'description'、'userAccountControl'、'accountStatus'。留空以禁用此检查。"
   },
   "notifications": {
     "certificateIssued": "证书已颁发：{{name}}",
@@ -2926,6 +2977,24 @@
         "headerNameRequired": "Header name is required",
         "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
         "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    },
+    "deliveries": {
+      "title": "投递 — {{name}}",
+      "loadFailed": "加载投递失败",
+      "requeued": "投递已重新排队",
+      "retryFailed": "重新排队失败",
+      "empty": "暂无投递",
+      "event": "事件",
+      "statusCol": "状态",
+      "attempts": "尝试",
+      "when": "时间",
+      "next": "下次",
+      "retry": "重试",
+      "status": {
+        "pending": "待处理",
+        "delivered": "已投递",
+        "failed": "失败"
       }
     }
   },
@@ -3480,7 +3549,9 @@
       "jks": "JKS (Java KeyStore)"
     },
     "formatJksDesc": "Java KeyStore，证书 + 密钥",
-    "jksNote": "JKS 始终包含私钥"
+    "jksNote": "JKS 始终包含私钥",
+    "pkcs12Title": "导出 PKCS#12",
+    "pkcs12PasswordPrompt": "请输入 PKCS#12 文件的密码"
   },
   "userCertificates": {
     "title": "用户证书",
@@ -4099,5 +4170,64 @@
     "preset": "预设",
     "savePreset": "保存预设",
     "managePresets": "管理预设"
+  },
+  "password_policy": {
+    "required": "需要密码",
+    "minLength": "密码必须至少包含 {{min_length}} 个字符",
+    "maxLength": "密码不能超过 {{max_length}} 个字符",
+    "uppercase": "密码必须至少包含一个大写字母",
+    "lowercase": "密码必须至少包含一个小写字母",
+    "digit": "密码必须至少包含一个数字",
+    "special": "密码必须至少包含一个特殊字符 ({{special_chars}})",
+    "common": "密码太常见，请选择更安全的密码",
+    "username": "密码不能包含您的用户名",
+    "similar": "密码与用户名太相似",
+    "sequential": "密码不能包含4个或更多连续字符",
+    "repeated": "密码不能包含4个或更多重复字符",
+    "rules": {
+      "minLength": "至少 {{min_length}} 个字符",
+      "uppercase": "至少一个大写字母 (A-Z)",
+      "lowercase": "至少一个小写字母 (a-z)",
+      "digit": "至少一个数字 (0-9)",
+      "special": "至少一个特殊字符 ({{special_chars}})"
+    }
+  },
+  "scheduler": {
+    "title": "调度器",
+    "subtitle": "后台任务及其状态",
+    "tasksTitle": "后台任务",
+    "runNow": "立即运行",
+    "taskRan": "任务 {{name}} 已执行",
+    "runFailed": "运行任务失败",
+    "loadFailed": "加载任务失败",
+    "noTasks": "没有计划任务",
+    "warningsCount": "{{count}} 个警告",
+    "colTask": "任务",
+    "colSchedule": "频率",
+    "colLastRun": "上次运行",
+    "colNextRun": "下次运行",
+    "colDuration": "耗时",
+    "colRuns": "次数"
+  },
+  "lint": {
+    "action": "检查",
+    "title": "合规性检查 — {{name}}",
+    "titleGeneric": "合规性检查",
+    "subtitle": "根据 X.509 标准检查此证书（仅供参考）。",
+    "profile_rfc5280": "RFC 5280",
+    "profile_cabf": "CA/Browser Forum",
+    "loadFailed": "检查失败",
+    "unavailable": "服务器上未安装证书检查器",
+    "unavailableHint": "在服务器上安装 pkilint 以启用检查。",
+    "clean": "未发现问题",
+    "detectedType": "检测到的证书类型",
+    "cabfNote": "Baseline Requirements 规则针对公共 TLS 证书；某些结果可能不适用于内部 PKI。",
+    "severity": {
+      "fatal": "致命",
+      "error": "错误",
+      "warning": "警告",
+      "notice": "提示",
+      "info": "信息"
+    }
   }
 }

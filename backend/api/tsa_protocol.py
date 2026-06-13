@@ -53,17 +53,27 @@ def timestamp_request():
         from services.tsa_service import TSAService
         from models import SystemConfig
         
-        # Get configured TSA CA
+        # Get configured TSA CA. Timestamping is an explicit opt-in service:
+        # without an admin-designated CA we do NOT silently fall back to an
+        # arbitrary CA key (that would turn any deployment into an anonymous
+        # signing service using the CA's private key).
         tsa_ca_config = SystemConfig.query.filter_by(key='tsa_ca_refid').first()
         tsa_ca_refid = tsa_ca_config.value if tsa_ca_config else ''
         if not tsa_ca_refid:
-            # Use first available CA
-            ca = CA.query.filter(CA.crt.isnot(None), CA.prv.isnot(None)).first()
-        else:
-            ca = CA.query.filter_by(refid=tsa_ca_refid).first()
-        
+            response = make_response('TSA not configured', 503)
+            response.headers['Content-Type'] = 'text/plain'
+            return response
+        ca = CA.query.filter_by(refid=tsa_ca_refid).first()
+
         if not ca or not ca.crt or not ca.prv:
             response = make_response('TSA not configured', 503)
+            response.headers['Content-Type'] = 'text/plain'
+            return response
+
+        # Offline CAs must not sign (consistent with CSR/CRL signing paths)
+        if ca.offline:
+            logger.warning(f"TSA request refused: CA '{ca.descr}' is offline")
+            response = make_response('TSA temporarily unavailable', 503)
             response.headers['Content-Type'] = 'text/plain'
             return response
         

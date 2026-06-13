@@ -569,7 +569,9 @@
     "resetFailed": "Falha ao redefinir. O link pode ter expirado.",
     "resetting": "Redefinindo...",
     "checkEmailDescBefore": "Se existir uma conta com",
-    "checkEmailDescAfter": ", você receberá um link para redefinir em breve."
+    "checkEmailDescAfter": ", você receberá um link para redefinir em breve.",
+    "accountDisabled": "Esta conta foi desativada",
+    "samlValidationFailed": "A autenticação SAML falhou"
   },
   "dashboard": {
     "goodMorning": "Bom dia",
@@ -999,7 +1001,18 @@
     "subtitle_other": "{{count}} modelos",
     "subtitle": "{{count}} modelos de certificados",
     "validityDays": "{{count}} dias",
-    "validityDays_one": "{{count}} dia"
+    "validityDays_one": "{{count}} dia",
+    "showAllTemplates": "Show all {{count}} templates",
+    "showPinnedOnly": "Show pinned only",
+    "pinToCA": "Pin to CA",
+    "unpinFromCA": "Unpin from CA",
+    "pinned": "Pinned",
+    "noPinnedTemplates": "No pinned templates for this CA",
+    "managePins": "Manage CA Pins",
+    "pinSuccess": "Template pinned to CA",
+    "unpinSuccess": "Template unpinned from CA",
+    "selectCA": "Select a Certificate Authority",
+    "pinnedCount": "{{count}} of {{total}} templates pinned"
   },
   "users": {
     "createUser": "Criar utilizador",
@@ -1361,8 +1374,23 @@
       "secretTitle": "Credencial EAB gerada",
       "secretWarningTitle": "Salve a chave HMAC agora",
       "secretWarning": "Esta é a única vez que a chave HMAC será exibida. Após fechar este diálogo, ela não poderá ser recuperada.",
-      "secretConfirm": "Salvei as credenciais"
-    }
+      "secretConfirm": "Salvei as credenciais",
+      "notes": "Notas",
+      "notesPlaceholder": "Adicionar notas...",
+      "notesSaved": "Notas salvas",
+      "notesSaveFailed": "Falha ao salvar notas",
+      "editNotesTitle": "Editar notas",
+      "confirmDelete": "Excluir permanentemente a credencial EAB {{kid}}? Esta ação não pode ser desfeita.",
+      "deleteTitle": "Excluir credencial EAB",
+      "delete": "Excluir",
+      "deletedSuccess": "Credencial EAB excluída",
+      "deleteFailed": "Falha ao excluir credencial EAB"
+    },
+    "termsOfServiceTitlePlaceholder": "Termos de Serviço (deixe vazio para ocultar)",
+    "termsOfServiceBodyPlaceholder": "Escreva seus termos aqui...\n\nSuporta: **negrito**, *itálico*, [links](url), - listas\n\nUse linhas vazias para parágrafos.",
+    "termsOfServiceHelper": "Texto simples com formatação tipo markdown. Use linhas vazias para parágrafos.",
+    "termsOfServicePreview": "Pré-visualização",
+    "termsOfServiceUrl": "URL dos Termos de Serviço"
   },
   "scep": {
     "title": "Protocolo SCEP",
@@ -2011,7 +2039,8 @@
       "about": "Sobre",
       "microsoftCA": "Microsoft CA",
       "ct": "CT",
-      "autoRenewal": "Renovação auto"
+      "autoRenewal": "Renovação auto",
+      "scheduler": "Agendador"
     },
     "testRecipient": "Destinatário de teste",
     "testRecipientRequired": "Insira um endereço de email destinatário para o teste",
@@ -2218,7 +2247,21 @@
     "autoRenewalRunSuccess": "Renovação concluída: {{renewed}} renovados, {{failed}} falharam",
     "autoRenewalRunFailed": "Falha na execução da renovação automática",
     "autoRenewalSettingsUpdated": "Configurações de renovação automática atualizadas",
-    "autoRenewalSettingsFailed": "Falha ao atualizar configurações de renovação"
+    "autoRenewalSettingsFailed": "Falha ao atualizar configurações de renovação",
+    "metrics": {
+      "title": "Métricas Prometheus",
+      "subtitle": "Endpoint /metrics opcional para monitorização",
+      "token": "Token de métricas",
+      "tokenPlaceholder": "Introduza ou gere um token bearer para ativar",
+      "tokenRotatePlaceholder": "Introduza um novo token para rodar (o atual é mantido)",
+      "tokenHelper": "Faça scrape de /metrics com o cabeçalho Authorization: Bearer <token>. O token só é mostrado aqui — copie-o agora.",
+      "generate": "Gerar",
+      "enable": "Ativar",
+      "rotate": "Rodar",
+      "disable": "Desativar",
+      "enabled": "Endpoint de métricas ativado",
+      "disabled": "Endpoint de métricas desativado"
+    }
   },
   "account": {
     "profile": "Perfil",
@@ -2591,6 +2634,10 @@
     "spMetadataXmlDesc": "Forneça esta URL ao seu IdP para configuração automática do SP",
     "attributeRoleMappingSection": "Mapeamento de atributos e funções",
     "groupsRolesSection": "Grupos e mapeamento de funções",
+    "requiredGroups": "Grupos obrigatórios (negação padrão)",
+    "requiredGroupsHelp": "Lista de grupos LDAP/AD separados por vírgulas. Os usuários devem pertencer a pelo menos um grupo para fazer login. Deixe vazio para permitir todos os usuários autenticados.",
+    "requiredGroupsPlaceholder": "ex.: PKI-Admins, PKI-Users, pki-viewers",
+    "accountStatusAttr": "Atributo de estado da conta",
     "provisioningSection": "Provisionamento de usuários",
     "userSearchSection": "Pesquisa de usuários",
     "testConnection": "Testar conexão",
@@ -2605,6 +2652,9 @@
     "testMappingNoGroups": "Nenhum grupo encontrado",
     "testMappingNotFound": "Usuário não encontrado no LDAP",
     "testMappingResolvedRole": "Função resolvida",
+    "testMappingAccess": "Acesso de login",
+    "testMappingAccessAllowed": "Permitido",
+    "testMappingAccessDenied": "Negado (não está nos grupos exigidos)",
     "testMappingFailed": "Teste de mapeamento falhou",
     "oauth2Preset": "Preset do provedor",
     "oauth2PresetHelp": "Selecione um preset para preencher automaticamente os endpoints OAuth2/OIDC para provedores comuns.",
@@ -2639,7 +2689,8 @@
     },
     "syncRoleOnLogin": "Sincronizar a função do SSO em cada login",
     "syncRoleOnLoginHelp": "Quando ativado, a função é ressincronizada a partir do mapeamento de funções a cada login. Usuários sem correspondência mantêm sua função UCM. Quando desativado (padrão), a função é definida apenas na criação do usuário e depois gerenciada no UCM.",
-    "defaultRoleHelp": "Aplicado apenas quando um usuário é criado automaticamente no primeiro login."
+    "defaultRoleHelp": "Aplicado apenas quando um usuário é criado automaticamente no primeiro login.",
+    "accountStatusAttrHelp": "Atributo LDAP que indica se uma conta está desativada. Valores comuns: 'description', 'userAccountControl', 'accountStatus'. Deixe vazio para desativar esta verificação."
   },
   "notifications": {
     "certificateIssued": "Certificado emitido: {{name}}",
@@ -2926,6 +2977,24 @@
         "headerNameRequired": "Header name is required",
         "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
         "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    },
+    "deliveries": {
+      "title": "Entregas — {{name}}",
+      "loadFailed": "Falha ao carregar as entregas",
+      "requeued": "Entrega recolocada na fila",
+      "retryFailed": "Falha ao recolocar na fila",
+      "empty": "Sem entregas",
+      "event": "Evento",
+      "statusCol": "Estado",
+      "attempts": "Tentativas",
+      "when": "Quando",
+      "next": "proxima",
+      "retry": "Tentar novamente",
+      "status": {
+        "pending": "Pendente",
+        "delivered": "Entregue",
+        "failed": "Falhou"
       }
     }
   },
@@ -3480,7 +3549,9 @@
       "jks": "JKS (Java KeyStore)"
     },
     "formatJksDesc": "Java KeyStore, certificado + chave",
-    "jksNote": "JKS sempre inclui a chave privada"
+    "jksNote": "JKS sempre inclui a chave privada",
+    "pkcs12Title": "Exportar PKCS#12",
+    "pkcs12PasswordPrompt": "Digite a senha para o arquivo PKCS#12"
   },
   "userCertificates": {
     "title": "Certificados de Utilizador",
@@ -4099,5 +4170,64 @@
     "preset": "Predefinição",
     "savePreset": "Salvar predefinição",
     "managePresets": "Gerenciar predefinições"
+  },
+  "password_policy": {
+    "required": "A senha é obrigatória",
+    "minLength": "A senha deve conter pelo menos {{min_length}} caracteres",
+    "maxLength": "A senha não deve conter mais de {{max_length}} caracteres",
+    "uppercase": "A senha deve conter pelo menos uma letra maiúscula",
+    "lowercase": "A senha deve conter pelo menos uma letra minúscula",
+    "digit": "A senha deve conter pelo menos um dígito",
+    "special": "A senha deve conter pelo menos um caractere especial ({{special_chars}})",
+    "common": "Senha muito comum, escolha uma mais forte",
+    "username": "A senha não pode conter seu nome de usuário",
+    "similar": "A senha é muito parecida com o nome de usuário",
+    "sequential": "A senha não pode conter 4 ou mais caracteres sequenciais",
+    "repeated": "A senha não pode conter 4 ou mais caracteres repetidos",
+    "rules": {
+      "minLength": "Pelo menos {{min_length}} caracteres",
+      "uppercase": "Pelo menos uma letra maiúscula (A-Z)",
+      "lowercase": "Pelo menos uma letra minúscula (a-z)",
+      "digit": "Pelo menos um dígito (0-9)",
+      "special": "Pelo menos um caractere especial ({{special_chars}})"
+    }
+  },
+  "scheduler": {
+    "title": "Agendador",
+    "subtitle": "Tarefas em segundo plano e seu estado",
+    "tasksTitle": "Tarefas em segundo plano",
+    "runNow": "Executar",
+    "taskRan": "Tarefa {{name}} executada",
+    "runFailed": "Falha ao executar a tarefa",
+    "loadFailed": "Falha ao carregar as tarefas",
+    "noTasks": "Nenhuma tarefa agendada",
+    "warningsCount": "{{count}} aviso(s)",
+    "colTask": "Tarefa",
+    "colSchedule": "Frequencia",
+    "colLastRun": "Ultima exec.",
+    "colNextRun": "Proxima exec.",
+    "colDuration": "Duracao",
+    "colRuns": "Exec."
+  },
+  "lint": {
+    "action": "Analisar",
+    "title": "Análise de conformidade — {{name}}",
+    "titleGeneric": "Análise de conformidade",
+    "subtitle": "Verifica este certificado em relação aos padrões X.509 (apenas informativo).",
+    "profile_rfc5280": "RFC 5280",
+    "profile_cabf": "CA/Browser Forum",
+    "loadFailed": "Falha na análise",
+    "unavailable": "Nenhum linter de certificados está instalado no servidor",
+    "unavailableHint": "Instale o pkilint no servidor para ativar a análise.",
+    "clean": "Nenhum problema encontrado",
+    "detectedType": "Tipo de certificado detectado",
+    "cabfNote": "As regras dos Baseline Requirements visam certificados TLS públicos; alguns resultados podem não se aplicar a uma PKI interna.",
+    "severity": {
+      "fatal": "Fatal",
+      "error": "Erro",
+      "warning": "Aviso",
+      "notice": "Nota",
+      "info": "Info"
+    }
   }
 }

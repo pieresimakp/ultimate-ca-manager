@@ -84,5 +84,14 @@ export const systemService = {
 
   async restartService() {
     return apiClient.post('/system/service/restart')
+  },
+
+  // Scheduler
+  async getSchedulerTasks() {
+    return apiClient.get('/system/scheduler')
+  },
+
+  async runSchedulerTask(name) {
+    return apiClient.post(`/system/scheduler/${encodeURIComponent(name)}/run`)
   }
 }

@@ -108,7 +108,7 @@ export default function DiscoveryPage() {
 
   const loadRuns = useCallback(async () => {
     try {
-      const params = { limit: 50 }
+      const params = { limit: 200 }
       if (profileFilter) params.profile_id = profileFilter
       const res = await discoveryService.getRuns(params)
       const data = res.data ?? res
@@ -197,9 +197,9 @@ export default function DiscoveryPage() {
         await discoveryService.createProfile(formData)
         showSuccess(t('discovery.profileCreated'))
       }
+      await loadProfiles()
       setShowProfileForm(false)
       setEditingProfile(null)
-      loadProfiles()
     } catch (error) {
       showError(error.message || t('messages.errors.saveFailed'))
     }
@@ -459,18 +459,22 @@ export default function DiscoveryPage() {
       }
     },
     {
-      key: 'schedule_interval',
+      key: 'schedule_interval_minutes',
       header: t('discovery.schedule'),
       priority: 3,
       hideOnMobile: true,
       render: (val) => {
-        if (!val) return <Badge variant="secondary" size="sm">{t('discovery.manual')}</Badge>
-        const hours = Math.round(val / 3600)
+        if (!val || val === 0) return <Badge variant="secondary" size="sm">{t('discovery.manual')}</Badge>
+        const hours = Math.round(val / 60)
+        if (hours >= 24) {
+          const days = Math.round(hours / 24)
+          return <Badge variant="info" size="sm" icon={Clock}>{days}d</Badge>
+        }
         return <Badge variant="info" size="sm" icon={Clock}>{hours}h</Badge>
       }
     },
     {
-      key: 'enabled',
+      key: 'schedule_enabled',
       header: t('common.status'),
       priority: 2,
       render: (val) => (
@@ -635,7 +639,7 @@ export default function DiscoveryPage() {
                   <MagnifyingGlass size={22} weight="bold" />
                 </Button>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
                   {scanning && scanProgress && scanProgress.total > 0 && (
                     <div className="flex items-center gap-2 text-xs text-text-secondary mr-1">
                       <div className="w-24 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
@@ -744,13 +748,7 @@ export default function DiscoveryPage() {
             columnStorageKey="ucm-discovery-profiles-columns"
             sortable
             defaultSort={{ key: 'name', direction: 'asc' }}
-            pagination={{
-              page,
-              total: profiles.length,
-              perPage,
-              onChange: setPage,
-              onPerPageChange: (v) => { setPerPage(v); setPage(1) }
-            }}
+            pagination={true}
             toolbarActions={canWrite('certificates') && (
               isMobile ? (
                 <Button type="button" size="lg" onClick={() => { setEditingProfile(null); setShowProfileForm(true) }} className="w-11 h-11 p-0">
@@ -789,13 +787,7 @@ export default function DiscoveryPage() {
             columnStorageKey="ucm-discovery-history-columns"
             sortable
             defaultSort={{ key: 'started_at', direction: 'desc' }}
-            pagination={{
-              page,
-              total: runsTotal,
-              perPage,
-              onChange: setPage,
-              onPerPageChange: (v) => { setPerPage(v); setPage(1) }
-            }}
+            pagination={true}
             emptyIcon={ClockCounterClockwise}
             emptyTitle={t('discovery.noHistory')}
             emptyDescription={t('discovery.noHistoryDesc')}

@@ -11,13 +11,13 @@ def _generate_setup_script(ca, pub_key, ca_type, hostname, platform='unix'):
 
     if platform == 'windows':
         # PowerShell escaping: backtick-escape backticks, escape single quotes for here-strings
-        ps_key = pub_key.strip().replace('`', '``')
+        ps_key = pub_key.strip().replace('\n', ' ').replace('`', '``')
         ps_label = ca.descr.replace('`', '``').replace('"', '`"')
         if ca_type == 'user':
             return _user_ca_script_windows(ps_key, ps_label)
         return _host_ca_script_windows(ps_key, ps_label, hostname)
 
-    safe_key = pub_key.strip().replace("'", "'\\''")
+    safe_key = pub_key.strip().replace("\n", " ").replace("'", "'\\''")
     if ca_type == 'user':
         return _user_ca_script(safe_key, ca_label)
     return _host_ca_script(safe_key, ca_label, hostname)
@@ -140,7 +140,7 @@ else
 fi
 
 # --- Step 2: Write CA public key ---
-CA_PUB_KEY=\'{pub_key}\'
+CA_PUB_KEY='{pub_key}'
 
 info "Writing CA public key to: $CA_KEY_FILE"
 if [ "$DRY_RUN" = true ]; then
@@ -394,7 +394,7 @@ else
 fi
 
 # --- Step 2: Write CA public key ---
-CA_PUB_KEY=\'{pub_key}\'
+CA_PUB_KEY='{pub_key}'
 
 info "Writing CA public key to: $CA_KEY_FILE"
 if [ "$DRY_RUN" = true ]; then

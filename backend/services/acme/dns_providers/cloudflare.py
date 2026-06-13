@@ -171,9 +171,11 @@ class CloudflareDnsProvider(BaseDnsProvider):
     def test_connection(self) -> Tuple[bool, str]:
         """Test Cloudflare API connection"""
         if self.use_token:
-            success, result = self._request('GET', '/user/tokens/verify')
+            # Use zone-scoped call — works with scoped tokens (Zone.DNS only)
+            # /user/tokens/verify requires account-level permissions
+            success, result = self._request('GET', '/zones', params={'per_page': 1})
             if success:
-                return True, "API Token verified successfully"
+                return True, "API Token verified successfully (Zone access confirmed)"
             return False, f"Token verification failed: {result}"
         else:
             success, result = self._request('GET', '/user')

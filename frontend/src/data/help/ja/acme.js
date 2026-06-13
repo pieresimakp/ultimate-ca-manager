@@ -5,6 +5,15 @@ export default {
     overview: 'UCMは2つのACMEモードをサポートしています：RFC 8555準拠のCA（Let\'s Encrypt、ZeroSSL、Buypass、HARICAなど）からパブリック証明書を取得するACMEクライアントと、マルチCA対応のドメインマッピングによる内部PKI自動化のためのローカルACMEサーバーです。',
     sections: [
       {
+        title: "Renewal Information (ARI, RFC 9773)",
+        content: "ローカル ACME サーバーは renewalInfo リソースを公開し、クライアントが各証明書の理想的な更新時期を知ることができます。",
+        items: [
+          { label: "推奨ウィンドウ", text: "有効期限前を中心とした開始/終了ウィンドウを返し、更新を時間的に分散します" },
+          { label: "失効", text: "失効した証明書は過去のウィンドウを返し、準拠クライアントは直ちに更新します" },
+          { label: "認証不要", text: "renewalInfo は単純な GET — アカウントや JWS は不要（RFC 9773）" },
+        ]
+      },
+      {
         title: 'ACMEクライアント',
         items: [
           { label: 'クライアント', text: '任意のACME CAから証明書を要求 — Let\'s Encrypt、ZeroSSL、Buypass、HARICA、またはカスタム' },
@@ -37,16 +46,6 @@ export default {
         ]
       },
       {
-        title: 'マルチCA解決',
-        content: 'ACMEクライアントが証明書を要求すると、UCMは以下の順序で署名CAを解決します：',
-        items: [
-          '1. ローカルドメインマッピング — 完全一致のドメイン、次に親ドメイン',
-          '2. DNSドメインマッピング — DNSプロバイダーに設定された発行CAを確認',
-          '3. グローバルデフォルト — ACMEサーバー設定で指定されたCA',
-          '4. 秘密鍵を持つ最初の利用可能なCA',
-        ]
-      },
-      {
         title: 'EAB クレデンシャル(サーバー側)',
         content: 'UCM が ACME サーバーとして動作する場合、External Account Binding(RFC 8555 §7.3.4)により、クライアントがアカウントを登録する前に事前発行クレデンシャルを要求できます:',
         items: [
@@ -73,7 +72,27 @@ export default {
           { label: '常時ブロック', text: 'クラウドメタデータ IP(169.254.169.254、fd00:ec2::254 など)は無条件にブロック' },
         ]
       },
-
+      {
+        title: 'マルチCA解決',
+        content: 'ACMEクライアントが証明書を要求すると、UCMは以下の順序で署名CAを解決します：',
+        items: [
+          '1. ローカルドメインマッピング — 完全一致のドメイン、次に親ドメイン',
+          '2. DNSドメインマッピング — DNSプロバイダーに設定された発行CAを確認',
+          '3. グローバルデフォルト — ACMEサーバー設定で指定されたCA',
+          '4. 秘密鍵を持つ最初の利用可能なCA',
+        ]
+      },
+      {
+        title: 'IPアドレス証明書 (RFC 8738)',
+        content: 'ローカルACMEサーバーはDNS名だけでなく、IPv4およびIPv6アドレスの証明書を発行できます。注文で識別子タイプ「ip」を使用します。',
+        items: [
+          { label: '識別子', text: '{ "type": "ip", "value": "192.0.2.10" }（IPv4）または 2001:db8::1 のようなIPv6リテラルで注文' },
+          { label: 'チャレンジ', text: 'HTTP-01とTLS-ALPN-01のみが提供されます — RFC 8738によりIP識別子ではDNS-01は禁止されています' },
+          { label: 'TLS-ALPN-01 SNI', text: '検証では逆引きDNS形式（in-addr.arpa / ip6.arpa）をSNIホスト名として使用します' },
+          { label: '発行されるSAN', text: '証明書にはiPAddress SANが含まれます。DNS + IPの混在注文に対応しています' },
+          { label: '内部IP', text: 'RFC1918およびループバックアドレスはそのまま検証されます — UCMの主要な導入モデルです' },
+        ]
+      }
     ],
     tips: [
       'ACMEディレクトリURL: https://your-server:port/acme/directory',
@@ -282,6 +301,40 @@ acme.sh --issue \\
 \`\`\`
 
 > ⚠ 内部ACMEの場合、クライアントはUCM CAを信頼する必要があります。ルートCA証明書をクライアントのトラストストアにインストールしてください。
+## IPアドレス証明書 (RFC 8738)
+
+ローカルACMEサーバーはDNS名だけでなく、**IPアドレス**（IPv4およびIPv6）の証明書を発行できます。内部サービス、アプライアンス、IPで直接アドレス指定されるホストに便利です。
+
+### IP証明書の注文
+ACME注文で識別子タイプ \`ip\` を使用します：
+\`\`\`json
+{
+  "identifiers": [
+    { "type": "ip", "value": "192.0.2.10" },
+    { "type": "ip", "value": "2001:db8::1" }
+  ]
+}
+\`\`\`
+DNS + IP の混在注文も対応しています。
+
+### 検証
+- IP識別子に対して提供される検証は **HTTP-01** と **TLS-ALPN-01** のみです。RFC 8738 により IP では **DNS-01 は禁止** されています。
+- **HTTP-01** は IP に直接接続します（IPv6リテラルは角括弧で囲まれます。例：\`http://[2001:db8::1]/...\`）。
+- **TLS-ALPN-01** は IP の逆引きDNS形式（\`in-addr.arpa\` / \`ip6.arpa\`）を SNI ホスト名として使用します。
+
+### 発行される証明書
+署名された証明書には、検証された各IPに対する **iPAddress** SubjectAltName エントリが含まれます。
+
+> 💡 内部アドレス（RFC1918、ループバック）はそのまま検証されます — UCMの主要な導入モデルです。クラウドメタデータIPは引き続きブロックされます。
+
+## Renewal Information (ARI, RFC 9773)
+
+ローカル ACME サーバーは directory で \`renewalInfo\` を通知し、証明書ごとの**推奨更新ウィンドウ**を提供します。
+
+- 有効期限前を中心としたウィンドウ → 更新が時間的に分散
+- 失効した証明書 → 過去のウィンドウ（直ちに更新）
+- \`/acme/renewalInfo/<certID>\` への認証不要の GET
+
 `
   }
 }

@@ -37,6 +37,27 @@ limiter = Limiter(
 )
 
 
+@limiter.request_filter
+def _rate_limit_lan_exempt():
+    """Bypass flask-limiter for LAN/loopback/link-local peers.
+
+    UCM is a LAN-deployed PKI: RFC1918, loopback and link-local clients are
+    the primary use case, not an attack vector. This mirrors the LAN-trust
+    bypass in security.rate_limiter (v2.155) so the per-endpoint login limits
+    (`@limiter.limit(...)`) don't lock out internal clients (or CI runners on
+    127.0.0.1). Gated by RATE_LIMIT_TRUST_LAN (default: true). The key is the
+    immediate peer (get_remote_address), so a spoofed X-Forwarded-For cannot
+    be used to gain the exemption.
+    """
+    try:
+        from security.rate_limiter import _is_lan_ip, _get_env_bool
+        if not _get_env_bool('RATE_LIMIT_TRUST_LAN', True):
+            return False
+        return _is_lan_ip(get_remote_address())
+    except Exception:
+        return False
+
+
 def create_app(config_name=None):
     """Application factory"""
     app = Flask(__name__, 
@@ -238,7 +259,20 @@ def create_app(config_name=None):
                 raise SystemExit(1)
         except FileNotFoundError:
             pass
-    
+
+    # Sensitive directories must not be group/world accessible: private key
+    # files are chmod 0600 but transit through the default umask between
+    # write and chmod, and db_migration holds raw unencrypted DB copies
+    # (password hashes, SMTP credentials).
+    for sensitive_dir in (config.PRIVATE_DIR, config.BACKUP_DIR / 'db_migration'):
+        try:
+            sensitive_dir.mkdir(parents=True, exist_ok=True)
+            if sensitive_dir.stat().st_mode & 0o077:
+                os.chmod(sensitive_dir, 0o700)
+                app.logger.info("Tightened sensitive dir perms to 0700: %s", sensitive_dir)
+        except OSError as e:
+            app.logger.warning("Could not tighten perms on %s: %s", sensitive_dir, e)
+
     # Initialize cache
     cache.init_app(app, config={
         'CACHE_TYPE': 'SimpleCache',  # In-memory cache
@@ -597,6 +631,40 @@ def create_app(config_name=None):
         except ImportError:
             pass
         
+        # Register scheduled backup task (every minute; runs only at configured time)
+        try:
+            from services.backup.schedule import run_scheduled_backup
+            scheduler.register_task(
+                name="scheduled_backup",
+                func=run_scheduled_backup,
+                interval=60,  # Check every minute (creates a backup only when due)
+                description="Create scheduled encrypted backups with retention"
+            )
+            app.logger.info("Registered scheduled backup task (every 60s)")
+        except ImportError:
+            pass
+
+        # Register webhook delivery task (drains the durable delivery queue with retry)
+        try:
+            from services.webhook_service import WebhookService
+            scheduler.register_task(
+                name="webhook_delivery",
+                func=WebhookService.process_pending_deliveries,
+                interval=30,  # Drain pending webhook deliveries every 30s
+                description="Deliver queued webhooks asynchronously with retry/backoff"
+            )
+            app.logger.info("Registered webhook delivery task (every 30s)")
+        except ImportError:
+            pass
+
+        # Wire email + WebSocket notifications onto the event bus so lifecycle
+        # code emits one event instead of calling three notification systems.
+        try:
+            from services.events.subscribers import register_notification_subscribers
+            register_notification_subscribers()
+        except ImportError:
+            pass
+
         # Register session cleanup task (every 15 minutes)
         try:
             from services.session_cleanup_task import SessionCleanupTask
@@ -610,9 +678,17 @@ def create_app(config_name=None):
         except ImportError:
             pass
         
-        # Start scheduler now that tasks are registered
-        scheduler.start(app=app)
-        app.logger.info("Scheduler service started with all tasks")
+        # Start scheduler now that tasks are registered. Skip the background
+        # thread under tests: the test SQLite backend uses a single shared
+        # (StaticPool) connection, so a scheduler thread running a query while
+        # a request commits raises "cannot commit transaction - SQL statements
+        # in progress" intermittently. Tasks stay registered (the admin view
+        # and run-now execute them synchronously).
+        if not app.config.get('TESTING'):
+            scheduler.start(app=app)
+            app.logger.info("Scheduler service started with all tasks")
+        else:
+            app.logger.info("Scheduler tasks registered (background thread disabled under TESTING)")
         
         # Register scheduler in app context for graceful shutdown
         app.scheduler = scheduler
@@ -722,7 +798,7 @@ def create_app(config_name=None):
     @app.before_request
     def redirect_to_fqdn():
         # Skip for health checks and static files
-        if request.path in ['/api/v2/health', '/api/health', '/health', '/api/auth/verify', '/api/v2/auth/verify'] or request.path.startswith(('/static/', '/assets/', '/cdp/', '/ca/', '/ocsp/', '/scep/', '/acme/', '/.well-known/', '/tsa', '/ssh/setup/')):
+        if request.path in ['/api/v2/health', '/api/health', '/health', '/metrics', '/api/v2/metrics', '/api/auth/verify', '/api/v2/auth/verify'] or request.path.startswith(('/static/', '/assets/', '/cdp/', '/ca/', '/ocsp/', '/scep/', '/acme/', '/.well-known/', '/tsa', '/ssh/setup/')):
             return None
         
         # Get configured FQDN - check both UCM_FQDN (Docker) and FQDN env vars
@@ -781,6 +857,7 @@ def create_app(config_name=None):
         # Allow health, auth, static, frontend, and protocol routes
         allowed_prefixes = (
             '/api/v2/health', '/api/health', '/health',
+            '/metrics', '/api/v2/metrics',  # Prometheus (own bearer-token gate)
             '/api/v2/auth/', '/api/auth/',
             '/api/v2/system/security/encryption-status',
             '/static/', '/assets/', '/favicon',

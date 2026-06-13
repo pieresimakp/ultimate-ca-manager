@@ -156,12 +156,13 @@ def create_user_mtls_certificate(user_id):
             return error_response('No CA available for mTLS certificate generation', 400)
 
         try:
-            result = CertificateService.create_user_certificate(
-                ca_refid=ca.refid,
-                common_name=name,
+            result = CertificateService.create_certificate(
+                descr=f"mTLS certificate for {target_user.username}",
+                caref=ca.refid,
+                dn={'commonName': name},
+                cert_type='usr_cert',
+                key_type='2048',
                 validity_days=int(validity_days),
-                key_type='RSA',
-                key_size=2048,
                 username=target_user.username,
             )
 
@@ -187,7 +188,9 @@ def create_user_mtls_certificate(user_id):
                 enabled=True,
             )
             db.session.add(auth_cert)
-            db.session.commit()
+            ok, err = safe_commit(logger, "Assign mTLS certificate")
+            if not ok:
+                return err
 
             key_pem = load_pem_bytes(result.prv, context=f"mTLS cert for user {user_id}").decode('utf-8') if result.prv else ''
 

@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from models import db, ScanRun, DiscoveredCertificate, ScanProfile
 
-from .helpers import _validate_port, _scan_semaphore, _MAX_CONCURRENT_SCANS, _parse_target, _parse_iso
+from .helpers import _validate_port, _scan_semaphore, _MAX_CONCURRENT_SCANS, _MAX_SCAN_HOSTS, _parse_target, _parse_iso
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +60,20 @@ class ScannerMixin:
             if '/' in raw and ':' not in raw:
                 try:
                     network = ipaddress.ip_network(raw, strict=False)
+                    host_count = network.num_addresses - 2 if network.num_addresses > 2 else network.num_addresses
+                    if host_count > _MAX_SCAN_HOSTS:
+                        raise ValueError(
+                            f"Subnet {raw} expands to {host_count} hosts "
+                            f"(max {_MAX_SCAN_HOSTS} per scan)"
+                        )
                     for ip in network.hosts():
                         for p in ports:
                             jobs.append((str(ip), p))
                     continue
-                except ValueError:
+                except ValueError as e:
+                    # Re-raise our own cap error; swallow only genuine parse failures
+                    if 'max' in str(e):
+                        raise
                     pass  # Not a valid CIDR, fall through to normal parse
 
             host, custom_port = _parse_target(raw)
@@ -109,6 +118,11 @@ class ScannerMixin:
                           resolve_dns: bool = False) -> int:
         """Start async subnet scan. Returns scan_run_id."""
         network = ipaddress.ip_network(cidr, strict=False)
+        host_count = network.num_addresses - 2 if network.num_addresses > 2 else network.num_addresses
+        if host_count > _MAX_SCAN_HOSTS:
+            raise ValueError(
+                f"Subnet {cidr} expands to {host_count} hosts (max {_MAX_SCAN_HOSTS} per scan)"
+            )
         targets = [str(ip) for ip in network.hosts()]
         return self.start_scan(targets, ports, profile_id, triggered_by,
                                triggered_by_user, app, timeout, max_workers, resolve_dns)

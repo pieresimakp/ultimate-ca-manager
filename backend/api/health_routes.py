@@ -86,6 +86,34 @@ def liveness():
     })
 
 
+@health_bp.route('/metrics')
+@health_bp.route('/api/v2/metrics')
+def metrics():
+    """Prometheus metrics endpoint (opt-in).
+
+    Disabled (404) until a ``metrics_token`` is configured. When set, a
+    matching ``Authorization: Bearer <token>`` is required — Prometheus
+    scrapes with a static bearer token.
+    """
+    import hmac
+    from flask import request, Response
+    from models import SystemConfig
+
+    cfg = SystemConfig.query.filter_by(key='metrics_token').first()
+    token = cfg.value if cfg and cfg.value else None
+    if not token:
+        return Response('Metrics disabled', status=404, mimetype='text/plain')
+
+    auth = request.headers.get('Authorization', '')
+    presented = auth[7:] if auth.startswith('Bearer ') else ''
+    if not presented or not hmac.compare_digest(presented, token):
+        return Response('Unauthorized', status=401, mimetype='text/plain')
+
+    from services.metrics_service import render_metrics
+    body = render_metrics()
+    return Response(body, status=200, mimetype='text/plain; version=0.0.4; charset=utf-8')
+
+
 def _check_database():
     """Check database connectivity"""
     try:

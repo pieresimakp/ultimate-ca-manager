@@ -25,6 +25,11 @@ _BLOCKED_NETWORKS = [
 _MAX_CONCURRENT_SCANS = 3
 _scan_semaphore = threading.Semaphore(_MAX_CONCURRENT_SCANS)
 
+# Upper bound on hosts expanded from a single CIDR. A /16 (65 534 hosts) is a
+# generous ceiling for one scan; anything larger (e.g. a /8 = 16M hosts) would
+# materialise millions of job tuples and exhaust memory before scanning starts.
+_MAX_SCAN_HOSTS = 65536
+
 
 def _is_blocked_ip(host: str) -> bool:
     """Check if host IP is in a blocked range (link-local/multicast/reserved only)."""

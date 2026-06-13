@@ -5,6 +5,16 @@ export default {
     overview: 'Gestione centralizzata di tutti i certificati X.509. Emetti nuovi certificati dalle tue CA, importa quelli esistenti, monitora le date di scadenza e gestisci rinnovi e revoche.',
     sections: [
       {
+        title: "Analisi di conformità",
+        content: "L'azione « Analizza » nel dettaglio di un certificato lo passa attraverso linter di standard e mostra i risultati. Solo informativo — non blocca mai l'emissione.",
+        items: [
+          { label: "Profili", text: "RFC 5280 (sempre rilevante) e CA/Browser Forum Baseline Requirements (certificati TLS server)" },
+          { label: "Gravità", text: "I risultati sono classificati: fatal, error, warning, notice, info" },
+          { label: "Motore", text: "Basato su pkilint (e zlint se il suo binario è presente) — dipendenza opzionale del server" },
+          { label: "PKI interna", text: "Le regole CA/Browser Forum riguardano i certificati pubblici; aspettati risultati non applicabili su una PKI interna" },
+        ]
+      },
+      {
         title: 'Stato del certificato',
         definitions: [
           { term: 'Valido', description: 'Entro il periodo di validità e non revocato' },
@@ -154,6 +164,15 @@ Seleziona due certificati e clicca **Confronta** per vedere un confronto affianc
 - **Filtro per CA** — Mostra i certificati di una CA specifica
 - **Ricerca testuale** — Cerca per CN, numero di serie o SAN
 - **Ordinamento** — Per nome, data di scadenza, data di creazione, stato
+## Analisi di conformità
+
+L'azione **Analizza** (dettaglio del certificato) verifica la conformità agli standard X.509. Solo informativo.
+
+- **RFC 5280** — profilo X.509 IETF, sempre rilevante
+- **CA/Browser Forum** — Baseline Requirements per certificati TLS pubblici (rumore atteso su PKI interna)
+- Gravità: fatal / error / warning / notice / info
+- Motore: pkilint (+ zlint se presente) — dipendenza server opzionale, degradazione graziosa se assente
+
 `
   }
 }

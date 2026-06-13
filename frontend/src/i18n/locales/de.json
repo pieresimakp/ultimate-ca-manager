@@ -569,7 +569,9 @@
     "resetFailed": "Zurücksetzen fehlgeschlagen. Der Link ist möglicherweise abgelaufen.",
     "resetting": "Zurücksetzen...",
     "checkEmailDescBefore": "Wenn ein Konto mit",
-    "checkEmailDescAfter": " existiert, erhalten Sie in Kürze einen Link zum Zurücksetzen."
+    "checkEmailDescAfter": " existiert, erhalten Sie in Kürze einen Link zum Zurücksetzen.",
+    "accountDisabled": "Dieses Konto wurde deaktiviert",
+    "samlValidationFailed": "SAML-Authentifizierung fehlgeschlagen"
   },
   "dashboard": {
     "goodMorning": "Guten Morgen",
@@ -999,7 +1001,18 @@
     "subtitle_other": "{{count}} Vorlagen",
     "subtitle": "{{count}} Zertifikatvorlagen",
     "validityDays": "{{count}} Tage",
-    "validityDays_one": "{{count}} Tag"
+    "validityDays_one": "{{count}} Tag",
+    "showAllTemplates": "Show all {{count}} templates",
+    "showPinnedOnly": "Show pinned only",
+    "pinToCA": "Pin to CA",
+    "unpinFromCA": "Unpin from CA",
+    "pinned": "Pinned",
+    "noPinnedTemplates": "No pinned templates for this CA",
+    "managePins": "Manage CA Pins",
+    "pinSuccess": "Template pinned to CA",
+    "unpinSuccess": "Template unpinned from CA",
+    "selectCA": "Select a Certificate Authority",
+    "pinnedCount": "{{count}} of {{total}} templates pinned"
   },
   "users": {
     "createUser": "Benutzer erstellen",
@@ -1361,8 +1374,23 @@
       "secretTitle": "EAB-Anmeldedaten generiert",
       "secretWarningTitle": "Speichern Sie den HMAC-Schlüssel jetzt",
       "secretWarning": "Dies ist das einzige Mal, dass der HMAC-Schlüssel angezeigt wird. Nach dem Schließen dieses Dialogs kann er nicht mehr abgerufen werden.",
-      "secretConfirm": "Ich habe die Anmeldedaten gespeichert"
-    }
+      "secretConfirm": "Ich habe die Anmeldedaten gespeichert",
+      "notes": "Notizen",
+      "notesPlaceholder": "Notizen hinzufügen...",
+      "notesSaved": "Notizen gespeichert",
+      "notesSaveFailed": "Notizen konnten nicht gespeichert werden",
+      "editNotesTitle": "Notizen bearbeiten",
+      "confirmDelete": "EAB-Credential {{kid}} endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleteTitle": "EAB-Credential löschen",
+      "delete": "Löschen",
+      "deletedSuccess": "EAB-Credential gelöscht",
+      "deleteFailed": "EAB-Credential konnte nicht gelöscht werden"
+    },
+    "termsOfServiceTitlePlaceholder": "Nutzungsbedingungen (leer lassen zum Ausblenden)",
+    "termsOfServiceBodyPlaceholder": "Schreiben Sie hier Ihre Bedingungen...\n\nUnterstützt: **Fett**, *Kursiv*, [Links](url), - Listen\n\nLeerzeilen für Absätze verwenden.",
+    "termsOfServiceHelper": "Klartext mit Markdown-ähnlicher Formatierung. Leerzeilen für Absätze verwenden.",
+    "termsOfServicePreview": "Vorschau",
+    "termsOfServiceUrl": "URL der Nutzungsbedingungen"
   },
   "scep": {
     "title": "SCEP-Protokoll",
@@ -2011,7 +2039,8 @@
       "about": "Über",
       "microsoftCA": "Microsoft CA",
       "ct": "CT",
-      "autoRenewal": "Auto-Erneuerung"
+      "autoRenewal": "Auto-Erneuerung",
+      "scheduler": "Planer"
     },
     "testRecipient": "Testempfänger",
     "testRecipientRequired": "Geben Sie eine Empfänger-E-Mail-Adresse für den Test ein",
@@ -2218,7 +2247,21 @@
     "autoRenewalRunSuccess": "Erneuerung abgeschlossen: {{renewed}} erneuert, {{failed}} fehlgeschlagen",
     "autoRenewalRunFailed": "Automatische Erneuerung fehlgeschlagen",
     "autoRenewalSettingsUpdated": "Einstellungen für automatische Erneuerung aktualisiert",
-    "autoRenewalSettingsFailed": "Fehler beim Aktualisieren der Einstellungen"
+    "autoRenewalSettingsFailed": "Fehler beim Aktualisieren der Einstellungen",
+    "metrics": {
+      "title": "Prometheus-Metriken",
+      "subtitle": "Opt-in-/metrics-Endpunkt für Monitoring",
+      "token": "Metriken-Token",
+      "tokenPlaceholder": "Bearer-Token eingeben oder generieren zum Aktivieren",
+      "tokenRotatePlaceholder": "Neues Token zum Rotieren eingeben (aktuelles bleibt erhalten)",
+      "tokenHelper": "Scrapen Sie /metrics mit dem Header Authorization: Bearer <Token>. Das Token wird nur hier angezeigt — jetzt kopieren.",
+      "generate": "Generieren",
+      "enable": "Aktivieren",
+      "rotate": "Rotieren",
+      "disable": "Deaktivieren",
+      "enabled": "Metriken-Endpunkt aktiviert",
+      "disabled": "Metriken-Endpunkt deaktiviert"
+    }
   },
   "account": {
     "profile": "Profil",
@@ -2591,6 +2634,10 @@
     "spMetadataXmlDesc": "Geben Sie diese URL Ihrem IdP für die automatische SP-Konfiguration",
     "attributeRoleMappingSection": "Attribut- & Rollenzuordnung",
     "groupsRolesSection": "Gruppen & Rollenzuordnung",
+    "requiredGroups": "Erforderliche Gruppen (Standard: verweigern)",
+    "requiredGroupsHelp": "Kommagetrennte Liste der LDAP/AD-Gruppen. Benutzer müssen Mitglied mindestens einer Gruppe sein, um sich anzumelden. Leer lassen, um alle authentifizierten Benutzer zuzulassen.",
+    "requiredGroupsPlaceholder": "z.B. PKI-Admins, PKI-Users, pki-viewers",
+    "accountStatusAttr": "Kontostatus-Attribut",
     "provisioningSection": "Benutzerbereitstellung",
     "userSearchSection": "Benutzersuche",
     "testConnection": "Verbindung testen",
@@ -2605,6 +2652,9 @@
     "testMappingNoGroups": "Keine Gruppen gefunden",
     "testMappingNotFound": "Benutzer nicht in LDAP gefunden",
     "testMappingResolvedRole": "Aufgelöste Rolle",
+    "testMappingAccess": "Anmeldezugriff",
+    "testMappingAccessAllowed": "Erlaubt",
+    "testMappingAccessDenied": "Verweigert (nicht in erforderlichen Gruppen)",
     "testMappingFailed": "Zuordnungstest fehlgeschlagen",
     "oauth2Preset": "Anbieter-Vorlage",
     "oauth2PresetHelp": "Wählen Sie eine Vorlage, um OAuth2/OIDC-Endpunkte für gängige Anbieter automatisch auszufüllen.",
@@ -2639,7 +2689,8 @@
     },
     "syncRoleOnLogin": "Rolle bei jeder Anmeldung vom SSO synchronisieren",
     "syncRoleOnLoginHelp": "Wenn aktiviert, wird die Rolle bei jeder Anmeldung aus dem Rollen-Mapping neu synchronisiert. Benutzer ohne Mapping-Treffer behalten ihre UCM-Rolle. Wenn deaktiviert (Standard), wird die Rolle nur bei der Erstellung des Benutzers gesetzt und danach in UCM verwaltet.",
-    "defaultRoleHelp": "Wird nur angewendet, wenn ein Benutzer bei der ersten Anmeldung automatisch angelegt wird."
+    "defaultRoleHelp": "Wird nur angewendet, wenn ein Benutzer bei der ersten Anmeldung automatisch angelegt wird.",
+    "accountStatusAttrHelp": "LDAP-Attribut, das angibt, ob ein Konto deaktiviert ist. Häufige Werte: 'description', 'userAccountControl', 'accountStatus'. Leer lassen, um diese Prüfung zu deaktivieren."
   },
   "notifications": {
     "certificateIssued": "Zertifikat ausgestellt: {{name}}",
@@ -2926,6 +2977,24 @@
         "headerNameRequired": "Header name is required",
         "authorizationBlocked": "\"Authorization\" cannot be used as the header name for API Key — use Custom Header type instead",
         "tokenTooLong": "Token exceeds maximum length of 8192 bytes"
+      }
+    },
+    "deliveries": {
+      "title": "Zustellungen — {{name}}",
+      "loadFailed": "Zustellungen konnten nicht geladen werden",
+      "requeued": "Zustellung erneut eingereiht",
+      "retryFailed": "Erneutes Einreihen fehlgeschlagen",
+      "empty": "Noch keine Zustellungen",
+      "event": "Ereignis",
+      "statusCol": "Status",
+      "attempts": "Versuche",
+      "when": "Wann",
+      "next": "naechste",
+      "retry": "Wiederholen",
+      "status": {
+        "pending": "Ausstehend",
+        "delivered": "Zugestellt",
+        "failed": "Fehlgeschlagen"
       }
     }
   },
@@ -3480,7 +3549,9 @@
       "jks": "JKS (Java KeyStore)"
     },
     "formatJksDesc": "Java KeyStore, Zertifikat + Schlüssel",
-    "jksNote": "JKS enthält immer den privaten Schlüssel"
+    "jksNote": "JKS enthält immer den privaten Schlüssel",
+    "pkcs12Title": "PKCS#12 exportieren",
+    "pkcs12PasswordPrompt": "Passwort für PKCS#12-Datei eingeben"
   },
   "userCertificates": {
     "title": "Benutzerzertifikate",
@@ -4099,5 +4170,64 @@
     "preset": "Voreinstellung",
     "savePreset": "Voreinstellung speichern",
     "managePresets": "Voreinstellungen verwalten"
+  },
+  "password_policy": {
+    "required": "Passwort ist erforderlich",
+    "minLength": "Das Passwort muss mindestens {{min_length}} Zeichen lang sein",
+    "maxLength": "Das Passwort darf höchstens {{max_length}} Zeichen lang sein",
+    "uppercase": "Das Passwort muss mindestens einen Großbuchstaben enthalten",
+    "lowercase": "Das Passwort muss mindestens einen Kleinbuchstaben enthalten",
+    "digit": "Das Passwort muss mindestens eine Ziffer enthalten",
+    "special": "Das Passwort muss mindestens ein Sonderzeichen enthalten ({{special_chars}})",
+    "common": "Passwort zu gängig, wählen Sie ein stärkeres",
+    "username": "Das Passwort darf Ihren Benutzernamen nicht enthalten",
+    "similar": "Das Passwort ist zu ähnlich wie der Benutzername",
+    "sequential": "Das Passwort darf nicht 4 oder mehr aufeinanderfolgende Zeichen enthalten",
+    "repeated": "Das Passwort darf nicht 4 oder mehr wiederholte Zeichen enthalten",
+    "rules": {
+      "minLength": "Mindestens {{min_length}} Zeichen",
+      "uppercase": "Mindestens ein Großbuchstabe (A-Z)",
+      "lowercase": "Mindestens ein Kleinbuchstabe (a-z)",
+      "digit": "Mindestens eine Ziffer (0-9)",
+      "special": "Mindestens ein Sonderzeichen ({{special_chars}})"
+    }
+  },
+  "scheduler": {
+    "title": "Planer",
+    "subtitle": "Hintergrundaufgaben und ihr Status",
+    "tasksTitle": "Hintergrundaufgaben",
+    "runNow": "Jetzt ausfuhren",
+    "taskRan": "Aufgabe {{name}} ausgefuhrt",
+    "runFailed": "Aufgabe konnte nicht ausgefuhrt werden",
+    "loadFailed": "Aufgaben konnten nicht geladen werden",
+    "noTasks": "Keine geplanten Aufgaben",
+    "warningsCount": "{{count}} Warnung(en)",
+    "colTask": "Aufgabe",
+    "colSchedule": "Zeitplan",
+    "colLastRun": "Letzte Ausf.",
+    "colNextRun": "Nachste Ausf.",
+    "colDuration": "Dauer",
+    "colRuns": "Ausf."
+  },
+  "lint": {
+    "action": "Prüfen",
+    "title": "Konformitätsprüfung — {{name}}",
+    "titleGeneric": "Konformitätsprüfung",
+    "subtitle": "Prüft dieses Zertifikat anhand der X.509-Standards (nur informativ).",
+    "profile_rfc5280": "RFC 5280",
+    "profile_cabf": "CA/Browser Forum",
+    "loadFailed": "Prüfung fehlgeschlagen",
+    "unavailable": "Auf dem Server ist kein Zertifikat-Linter installiert",
+    "unavailableHint": "Installieren Sie pkilint auf dem Server, um die Prüfung zu aktivieren.",
+    "clean": "Keine Probleme gefunden",
+    "detectedType": "Erkannter Zertifikatstyp",
+    "cabfNote": "Die Baseline-Requirements-Regeln gelten für öffentliche TLS-Zertifikate; einige Befunde treffen auf eine interne PKI möglicherweise nicht zu.",
+    "severity": {
+      "fatal": "Fatal",
+      "error": "Fehler",
+      "warning": "Warnung",
+      "notice": "Hinweis",
+      "info": "Info"
+    }
   }
 }

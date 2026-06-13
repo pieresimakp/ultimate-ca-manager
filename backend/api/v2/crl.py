@@ -7,6 +7,7 @@ from auth.unified import require_auth
 from utils.response import success_response, error_response
 from utils.db_transaction import safe_commit
 from utils.protocol_url import get_protocol_base_url
+from utils.trusted_proxy import client_ip
 from models import db, CA, AuditLog
 from models.crl import CRLMetadata
 from services.crl_service import CRLService
@@ -166,7 +167,7 @@ def toggle_auto_regen(ca_id):
             resource_name=ca.descr,
             username=username,
             details=f"{'Enabled' if enabled else 'Disabled'} automatic CRL regeneration",
-            ip_address=request.remote_addr,
+            ip_address=client_ip(),
             success=True
         )
         db.session.add(audit)

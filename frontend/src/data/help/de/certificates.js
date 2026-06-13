@@ -5,6 +5,16 @@ export default {
     overview: 'Zentrale Verwaltung aller X.509-Zertifikate. Stellen Sie neue Zertifikate von Ihren CAs aus, importieren Sie vorhandene, verfolgen Sie Ablaufdaten und verwalten Sie Erneuerungen und Widerrufe.',
     sections: [
       {
+        title: "Konformitätsprüfung",
+        content: "Die Aktion „Prüfen“ in den Zertifikatdetails führt das Zertifikat durch Standard-Linter und zeigt die Befunde. Nur informativ — blockiert nie die Ausstellung.",
+        items: [
+          { label: "Profile", text: "RFC 5280 (immer relevant) und CA/Browser Forum Baseline Requirements (TLS-Serverzertifikate)" },
+          { label: "Schweregrade", text: "Befunde werden eingestuft: fatal, error, warning, notice, info" },
+          { label: "Engine", text: "Angetrieben von pkilint (und zlint, falls dessen Binary vorhanden) — optionale Serverabhängigkeit" },
+          { label: "Interne PKI", text: "CA/Browser-Forum-Regeln gelten für öffentliche Zertifikate; bei interner PKI sind nicht zutreffende Befunde zu erwarten" },
+        ]
+      },
+      {
         title: 'Zertifikatsstatus',
         definitions: [
           { term: 'Gültig', description: 'Innerhalb des Gültigkeitszeitraums und nicht widerrufen' },
@@ -154,6 +164,15 @@ Wählen Sie zwei Zertifikate aus und klicken Sie auf **Vergleichen**, um einen V
 - **CA-Filter** — Zertifikate einer bestimmten CA anzeigen
 - **Textsuche** — Nach CN, Seriennummer oder SAN suchen
 - **Sortierung** — Nach Name, Ablaufdatum, Erstellungsdatum, Status
+## Konformitätsprüfung
+
+Die Aktion **Prüfen** (Zertifikatdetails) prüft die Konformität mit X.509-Standards. Nur informativ.
+
+- **RFC 5280** — IETF-X.509-Profil, immer relevant
+- **CA/Browser Forum** — Baseline Requirements für öffentliche TLS-Zertifikate (Rauschen bei interner PKI zu erwarten)
+- Schweregrade: fatal / error / warning / notice / info
+- Engine: pkilint (+ zlint falls vorhanden) — optionale Serverabhängigkeit, sanfte Degradierung wenn nicht vorhanden
+
 `
   }
 }

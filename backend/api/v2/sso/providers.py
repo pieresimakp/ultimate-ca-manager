@@ -7,7 +7,7 @@ from models import db
 from models.sso import SSOProvider, SSOSession
 from services.audit_service import AuditService
 import json
-from .helpers import _encrypt_ldap_password, _parse_json_field
+from .helpers import _encrypt_ldap_password, _parse_json_field, _parse_group_list
 from .connection_tests import _test_ldap_connection, _test_oauth2_connection, _test_saml_connection
 from utils.ssrf_protection import validate_url_not_cloud_metadata
 
@@ -140,6 +140,9 @@ def create_provider():
         provider.ldap_username_attr = data.get('ldap_username_attr', 'uid')
         provider.ldap_email_attr = data.get('ldap_email_attr', 'mail')
         provider.ldap_fullname_attr = data.get('ldap_fullname_attr', 'cn')
+        required = _parse_group_list(data.get('ldap_required_groups'))
+        provider.ldap_required_groups = json.dumps(required) if required else None
+        provider.account_status_attr = data.get('account_status_attr')
 
     # JSON fields - normalize to ensure clean JSON string storage
     if data.get('attribute_mapping'):
@@ -253,6 +256,12 @@ def update_provider(provider_id=None, provider_type_name=None):
                       'ldap_fullname_attr', 'ldap_verify_ssl']:
             if field in data:
                 setattr(provider, field, data[field])
+        # ldap_required_groups: normalize list/CSV string → JSON string (empty = clear)
+        if 'ldap_required_groups' in data:
+            required = _parse_group_list(data['ldap_required_groups'])
+            provider.ldap_required_groups = json.dumps(required) if required else None
+        if 'account_status_attr' in data:
+            provider.account_status_attr = data['account_status_attr'] or None
         # ca_bundle: only update if string PEM content (ignore bool from to_dict round-trip)
         if 'ldap_ca_bundle' in data and isinstance(data['ldap_ca_bundle'], str):
             provider.ldap_ca_bundle = data['ldap_ca_bundle'] or None

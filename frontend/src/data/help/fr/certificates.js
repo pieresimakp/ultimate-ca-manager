@@ -5,6 +5,16 @@ export default {
     overview: 'Gestion centralisée de tous les certificats X.509. Émettez de nouveaux certificats depuis vos CA, importez des certificats existants, suivez les dates d\'expiration et gérez les renouvellements et révocations.',
     sections: [
       {
+        title: "Linting de conformité",
+        content: "Le bouton « Linter » sur le détail d'un certificat le passe dans des linters de standards et affiche les anomalies. Purement informatif — ne bloque jamais l'émission.",
+        items: [
+          { label: "Profils", text: "RFC 5280 (toujours pertinent) et CA/Browser Forum Baseline Requirements (certificats TLS serveur)" },
+          { label: "Sévérités", text: "Les résultats sont gradés : fatal, error, warning, notice, info" },
+          { label: "Moteur", text: "Propulsé par pkilint (et zlint si son binaire est présent) — dépendance serveur optionnelle" },
+          { label: "PKI interne", text: "Les règles CA/Browser Forum visent les certificats publics ; attendez-vous à des anomalies non applicables sur une PKI interne" },
+        ]
+      },
+      {
         title: 'Statut des certificats',
         definitions: [
           { term: 'Valide', description: 'Dans la période de validité et non révoqué' },
@@ -154,6 +164,15 @@ Sélectionnez deux certificats et cliquez sur **Comparer** pour voir une compara
 - **Filtre par CA** — Afficher les certificats d'une CA spécifique
 - **Recherche textuelle** — Recherche par CN, numéro de série ou SAN
 - **Tri** — Par nom, date d'expiration, date de création, statut
+## Linting de conformité
+
+Le bouton **Linter** (détail d'un certificat) vérifie la conformité aux standards X.509. Informatif uniquement.
+
+- **RFC 5280** — profil X.509 IETF, toujours pertinent
+- **CA/Browser Forum** — Baseline Requirements pour certificats TLS publics (bruit attendu sur PKI interne)
+- Sévérités : fatal / error / warning / notice / info
+- Moteur : pkilint (+ zlint si présent) — dépendance serveur optionnelle, dégradation gracieuse si absente
+
 `
   }
 }

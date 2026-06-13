@@ -30,8 +30,8 @@ class ChallengeMixin:
         
         # Get identifier from authorization
         auth = challenge.authorization
-        identifier = json.loads(auth.identifier)
-        domain = identifier.get("value", "")
+        identifier_value = auth.identifier_value if auth else ""
+        identifier_type = auth.identifier_type if auth else "dns"
         
         # Compute key authorization
         key_authz = self._compute_key_authorization(
@@ -40,15 +40,23 @@ class ChallengeMixin:
         )
         
         # Fetch from well-known URL
-        url = f"http://{domain}/.well-known/acme-challenge/{challenge.token}"
+        # RFC 8738: For IP identifiers, use the IP directly as host.
+        # RFC 3986: IPv6 literals MUST be bracketed in the URL.
+        if identifier_type == "ip":
+            from utils.acme_ip import format_ip_for_url
+            url_host = format_ip_for_url(identifier_value)
+        else:
+            url_host = identifier_value
+        url = f"http://{url_host}/.well-known/acme-challenge/{challenge.token}"
         
         try:
             # SSRF protection: reject domains resolving to private/loopback IPs
             # unless explicitly allowed (local ACME is meant for internal infra).
-            if not self._acme_allow_private_ips():
+            # RFC 8738: For IP identifiers, skip DNS resolution check
+            if identifier_type == "dns" and not self._acme_allow_private_ips():
                 from utils.ssrf_protection import validate_host_not_private
                 try:
-                    validate_host_not_private(domain)
+                    validate_host_not_private(identifier_value)
                 except ValueError as ssrf_err:
                     challenge.status = "invalid"
                     challenge.error = json.dumps({
@@ -56,7 +64,7 @@ class ChallengeMixin:
                         "detail": "Domain resolves to a non-public address"
                     })
                     db.session.commit()
-                    logger.warning(f"HTTP-01 SSRF blocked for {domain}: {ssrf_err}")
+                    logger.warning(f"HTTP-01 SSRF blocked for {identifier_value}: {ssrf_err}")
                     return False
             
             response = requests.get(url, timeout=10, allow_redirects=False)
@@ -112,8 +120,7 @@ class ChallengeMixin:
         
         # Get identifier from authorization
         auth = challenge.authorization
-        identifier = json.loads(auth.identifier)
-        domain = identifier.get("value", "")
+        domain = auth.identifier_value if auth else ""
         
         # Compute key authorization
         key_authz = self._compute_key_authorization(
@@ -195,11 +202,13 @@ class ChallengeMixin:
         challenge: AcmeChallenge,
         account
     ) -> bool:
-        """Validate TLS-ALPN-01 challenge (RFC 8737)
+        """Validate TLS-ALPN-01 challenge (RFC 8737, RFC 8738)
         
-        Connects to the domain on port 443 with the acme-tls/1 ALPN extension,
+        Connects to the domain/IP on port 443 with the acme-tls/1 ALPN extension,
         verifies the self-signed certificate contains the acmeIdentifier extension
         with the correct key authorization hash.
+        
+        RFC 8738: For IP identifiers, use reverse PTR mapping as SNI HostName.
         
         Args:
             challenge: AcmeChallenge object
@@ -212,8 +221,8 @@ class ChallengeMixin:
         import socket
         
         auth = challenge.authorization
-        identifier = json.loads(auth.identifier)
-        domain = identifier.get("value", "")
+        identifier_value = auth.identifier_value if auth else ""
+        identifier_type = auth.identifier_type if auth else "dns"
         
         # Compute key authorization hash
         key_authz = self._compute_key_authorization(
@@ -225,10 +234,11 @@ class ChallengeMixin:
         try:
             # SSRF protection: reject domains resolving to private/loopback IPs
             # unless explicitly allowed (local ACME is meant for internal infra).
-            if not self._acme_allow_private_ips():
+            # RFC 8738: For IP identifiers, skip DNS resolution check
+            if identifier_type == "dns" and not self._acme_allow_private_ips():
                 from utils.ssrf_protection import validate_host_not_private
                 try:
-                    validate_host_not_private(domain)
+                    validate_host_not_private(identifier_value)
                 except ValueError as ssrf_err:
                     challenge.status = "invalid"
                     challenge.error = json.dumps({
@@ -236,8 +246,17 @@ class ChallengeMixin:
                         "detail": "Domain resolves to a non-public address"
                     })
                     db.session.commit()
-                    logger.warning(f"TLS-ALPN-01 SSRF blocked for {domain}: {ssrf_err}")
+                    logger.warning(f"TLS-ALPN-01 SSRF blocked for {identifier_value}: {ssrf_err}")
                     return False
+            
+            # RFC 8738: For IP identifiers, use reverse PTR mapping as SNI
+            if identifier_type == "ip":
+                from utils.acme_ip import ip_to_reverse_ptr
+                sni_hostname = ip_to_reverse_ptr(identifier_value)
+                if not sni_hostname:
+                    raise ValueError(f"Invalid IP address for TLS-ALPN-01: {identifier_value}")
+            else:
+                sni_hostname = identifier_value
             
             # Create SSL context with acme-tls/1 ALPN
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -245,9 +264,9 @@ class ChallengeMixin:
             ctx.verify_mode = ssl.CERT_NONE
             ctx.set_alpn_protocols(['acme-tls/1'])
             
-            # Connect to domain
-            with socket.create_connection((domain, 443), timeout=10) as sock:
-                with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
+            # Connect to domain/IP
+            with socket.create_connection((identifier_value, 443), timeout=10) as sock:
+                with ctx.wrap_socket(sock, server_hostname=sni_hostname) as ssock:
                     # Verify ALPN was negotiated
                     negotiated = ssock.selected_alpn_protocol()
                     if negotiated != 'acme-tls/1':

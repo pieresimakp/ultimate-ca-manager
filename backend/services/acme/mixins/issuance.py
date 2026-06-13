@@ -44,48 +44,60 @@ class IssuanceMixin:
         except Exception as e:
             return False, f"Invalid CSR: {str(e)}"
         
-        # Validate CSR matches order identifiers (RFC 4343: DNS names case-insensitive)
+        # Validate CSR matches order identifiers (RFC 4343: DNS names case-insensitive, RFC 8738: IP identifiers)
         csr_domains = self._extract_domains_from_csr(csr)
+        csr_ips = self._extract_ips_from_csr(csr)
         order_identifiers = json.loads(order.identifiers)
         order_domains = [id['value'] for id in order_identifiers if id.get('type') == 'dns']
+        order_ips = [id['value'] for id in order_identifiers if id.get('type') == 'ip']
 
+        # Validate DNS identifiers
         csr_domains_norm = {d.lower().rstrip('.') for d in csr_domains}
         order_domains_norm = {d.lower().rstrip('.') for d in order_domains}
         if csr_domains_norm != order_domains_norm:
             return False, f"CSR domains {sorted(csr_domains_norm)} don't match order domains {sorted(order_domains_norm)}"
         
-        # CAA record check (RFC 6844 + RFC 8555 §8.1)
-        try:
-            from utils.caa_checker import check_caa_for_domains
-            from models import SystemConfig
-            
-            caa_identifiers = []
+        # Validate IP identifiers (RFC 8738)
+        csr_ips_norm = {ip for ip in csr_ips}
+        order_ips_norm = {ip for ip in order_ips}
+        if csr_ips_norm != order_ips_norm:
+            return False, f"CSR IPs {sorted(csr_ips_norm)} don't match order IPs {sorted(order_ips_norm)}"
+        
+        # CAA record check (RFC 6844 + RFC 8555 §8.1) - only for DNS identifiers
+        if order_domains:
             try:
-                caa_cfg = SystemConfig.query.filter_by(key='acme_caa_identifiers').first()
-                if caa_cfg and caa_cfg.value:
-                    caa_identifiers = [v.strip() for v in caa_cfg.value.split(',') if v.strip()]
-            except Exception:
-                pass
-            
-            if not caa_identifiers:
-                # Use server hostname as default CAA identity
-                from flask import request as flask_request
+                from utils.caa_checker import check_caa_for_domains
+                from models import SystemConfig
+                
+                caa_identifiers = []
                 try:
-                    caa_identifiers = [flask_request.host.split(':')[0]]
+                    caa_cfg = SystemConfig.query.filter_by(key='acme_caa_identifiers').first()
+                    if caa_cfg and caa_cfg.value:
+                        caa_identifiers = [v.strip() for v in caa_cfg.value.split(',') if v.strip()]
                 except Exception:
                     pass
-            
-            caa_allowed, caa_reason = check_caa_for_domains(order_domains, caa_identifiers)
-            if not caa_allowed:
-                logger.warning(f"CAA check failed for order {order_id}: {caa_reason}")
-                return False, f"CAA check failed: {caa_reason}"
-            logger.debug(f"CAA check passed for {order_domains}: {caa_reason}")
-        except ImportError:
-            logger.debug("dns.resolver not available, skipping CAA check")
-        except Exception as e:
-            logger.warning(f"CAA check error (non-blocking): {e}")
+                
+                if not caa_identifiers:
+                    # Use server hostname as default CAA identity
+                    from flask import request as flask_request
+                    try:
+                        caa_identifiers = [flask_request.host.split(':')[0]]
+                    except Exception:
+                        pass
+                
+                caa_allowed, caa_reason = check_caa_for_domains(order_domains, caa_identifiers)
+                if not caa_allowed:
+                    logger.warning(f"CAA check failed for order {order_id}: {caa_reason}")
+                    return False, f"CAA check failed: {caa_reason}"
+                logger.debug(f"CAA check passed for {order_domains}: {caa_reason}")
+            except ImportError:
+                logger.debug("dns.resolver not available, skipping CAA check")
+            except Exception as e:
+                logger.warning(f"CAA check error (non-blocking): {e}")
         
         # Resolve CA: domain-specific → global default → first available
+        # IP-only orders have no domains: skips the per-domain mappings and
+        # resolves straight to the global default (acme.issuing_ca_id)
         if not ca_refid:
             ca_refid = self._resolve_ca_for_domains(order_domains)
         
@@ -124,7 +136,16 @@ class IssuanceMixin:
         
         # Auto-supersede: revoke previous certs for same domains if enabled
         self._auto_supersede(order, cert_id)
-        
+
+        try:
+            from models import Certificate
+            from services.webhook_service import emit_cert_issued
+            issued = Certificate.query.get(cert_id)
+            if issued:
+                emit_cert_issued(issued.to_dict(), ca_refid=issued.caref)
+        except Exception as e:
+            logger.error(f"Webhook emit (ACME issuance) failed: {e}")
+
         return True, None
     
     def _auto_supersede(self, new_order, new_cert_id: int):
@@ -164,6 +185,18 @@ class IssuanceMixin:
                         logger.warning(f"Failed to supersede certificate {cert.id}: {e}")
         except Exception as e:
             logger.warning(f"Auto-supersede check failed: {e}")
+    
+    def _extract_ips_from_csr(self, csr) -> List[str]:
+        """Extract IP addresses from CSR Subject Alternative Names (RFC 8738)
+        
+        Args:
+            csr: x509.CertificateSigningRequest object
+            
+        Returns:
+            List of IP address strings
+        """
+        from utils.acme_ip import extract_ip_from_csr_san
+        return extract_ip_from_csr_san(csr)
     
     def _extract_domains_from_csr(self, csr) -> List[str]:
         """Extract domain names from CSR

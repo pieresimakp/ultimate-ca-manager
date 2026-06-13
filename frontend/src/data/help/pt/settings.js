@@ -5,6 +5,42 @@ export default {
     overview: 'Configure todos os aspectos do sistema UCM. As configurações são organizadas por categoria: geral, aparência, e-mail, segurança, SSO, backup, auditoria, banco de dados, HTTPS, atualizações e webhooks.',
     sections: [
       {
+        title: "Métricas Prometheus",
+        content: "Endpoint /metrics opcional que expõe contadores (certificados, CA, agendador, webhooks, ACME) em formato Prometheus.",
+        items: [
+          { label: "Ativação", text: "Defina um token de métricas em Definições › Geral; sem token, o endpoint retorna 404 (desativado)" },
+          { label: "Autenticação", text: "Faça scrape com Authorization: Bearer <token>" },
+          { label: "Contadores", text: "ucm_certificates, ucm_certificate_authorities, ucm_scheduler_task_*, ucm_webhook_deliveries, ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Histórico de entrega de webhooks",
+        content: "Cada endpoint de webhook mantém um registo de entrega com estado, tentativas e nova tentativa manual.",
+        items: [
+          { label: "Estados", text: "pending / delivered / failed, com o último código HTTP e erro" },
+          { label: "Repetir", text: "Recolocar manualmente em fila um evento falhado ou já entregue" },
+          { label: "Assíncrono", text: "As entregas partem de uma fila durável com recuo exponencial (até 5 tentativas)" },
+        ]
+      },
+      {
+        title: "Vista do agendador",
+        content: "Definições › Sistema lista as tarefas em segundo plano com o seu estado e última execução.",
+        items: [
+          { label: "Tarefas", text: "Verificações de expiração, atualização de CRL, entrega de webhooks, backups agendados, renovação automática, etc." },
+          { label: "Executar agora", text: "Acionar qualquer tarefa a pedido" },
+          { label: "Visibilidade", text: "Última execução, última duração e número de falhas por tarefa" },
+        ]
+      },
+      {
+        title: "Backups agendados",
+        content: "Backups automáticos e cifrados da base de dados, com cadência configurável e retenção.",
+        items: [
+          { label: "Cadência", text: "Diária / semanal / mensal" },
+          { label: "Retenção", text: "Manter os N backups mais recentes; os mais antigos são removidos" },
+          { label: "Cifragem", text: "Os backups são cifrados com a palavra-passe de backup configurada" },
+        ]
+      },
+      {
         title: 'Categorias',
         items: [
           { label: 'Geral', text: 'Nome da instância, hostname e padrões do sistema' },
@@ -248,6 +284,38 @@ Os tokens são armazenados criptografados e nunca retornados na UI.
 
 ### Teste
 Clique em **Testar** para enviar um evento de exemplo para a URL do webhook e verificar se está acessível.
+## Métricas Prometheus
+
+Endpoint **\`/metrics\`** opcional e protegido por token.
+
+- Ative-o definindo um token de métricas (Definições › Geral); sem token → 404
+- Faça scrape com o cabeçalho \`Authorization: Bearer <token>\`
+- Expõe \`ucm_certificates\`, \`ucm_certificate_authorities\`, \`ucm_scheduler_task_*\`, \`ucm_webhook_deliveries\`, \`ucm_acme_*\`
+
+## Histórico de entrega de webhooks
+
+Abra o histórico (ícone de relógio) num webhook para ver as suas entregas.
+
+- Estados **pending / delivered / failed** com último código HTTP e erro
+- **Repetir** uma entrega manualmente
+- Fila durável com recuo exponencial (até 5 tentativas)
+
+## Vista do agendador
+
+Definições › Sistema mostra as tarefas em segundo plano.
+
+- Lista de tarefas com **estado**, **última execução**, **duração** e **falhas**
+- **Executar agora** em qualquer tarefa
+- Cobre expiração, CRL, entrega de webhooks, backups, renovação automática…
+
+## Backups agendados
+
+Definições › Backup ativa backups automáticos.
+
+- Cadência **diária / semanal / mensal**
+- **Retenção**: manter os N mais recentes, remover os antigos
+- Backups **cifrados** com a palavra-passe de backup
+
 `
   }
 }

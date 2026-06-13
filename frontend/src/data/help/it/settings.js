@@ -5,6 +5,42 @@ export default {
     overview: 'Configura tutti gli aspetti del sistema UCM. Le impostazioni sono organizzate per categoria: generale, aspetto, email, sicurezza, SSO, backup, audit, database, HTTPS, aggiornamenti e webhook.',
     sections: [
       {
+        title: "Metriche Prometheus",
+        content: "Endpoint /metrics opzionale che espone contatori (certificati, CA, scheduler, webhook, ACME) in formato Prometheus.",
+        items: [
+          { label: "Attivazione", text: "Imposta un token metriche in Impostazioni › Generale; senza token l'endpoint restituisce 404 (disattivato)" },
+          { label: "Autenticazione", text: "Esegui lo scrape con Authorization: Bearer <token>" },
+          { label: "Contatori", text: "ucm_certificates, ucm_certificate_authorities, ucm_scheduler_task_*, ucm_webhook_deliveries, ucm_acme_*" },
+        ]
+      },
+      {
+        title: "Cronologia di consegna dei webhook",
+        content: "Ogni endpoint webhook mantiene un registro di consegna con stato, tentativi e nuovo tentativo manuale.",
+        items: [
+          { label: "Stati", text: "pending / delivered / failed, con l'ultimo codice HTTP ed errore" },
+          { label: "Riprova", text: "Rimetti manualmente in coda un evento fallito o già consegnato" },
+          { label: "Asincrono", text: "Le consegne partono da una coda durevole con backoff esponenziale (fino a 5 tentativi)" },
+        ]
+      },
+      {
+        title: "Vista dello scheduler",
+        content: "Impostazioni › Sistema elenca le attività in background con il loro stato e l'ultima esecuzione.",
+        items: [
+          { label: "Attività", text: "Controlli di scadenza, aggiornamento CRL, consegna webhook, backup pianificati, rinnovo automatico, ecc." },
+          { label: "Esegui ora", text: "Avviare qualsiasi attività su richiesta" },
+          { label: "Visibilità", text: "Ultima esecuzione, ultima durata e numero di errori per attività" },
+        ]
+      },
+      {
+        title: "Backup pianificati",
+        content: "Backup automatici e cifrati del database, con cadenza configurabile e ritenzione.",
+        items: [
+          { label: "Cadenza", text: "Giornaliera / settimanale / mensile" },
+          { label: "Ritenzione", text: "Conservare i N backup più recenti; quelli più vecchi vengono eliminati" },
+          { label: "Cifratura", text: "I backup sono cifrati con la password di backup configurata" },
+        ]
+      },
+      {
         title: 'Categorie',
         items: [
           { label: 'Generale', text: 'Nome dell\'istanza, hostname e impostazioni predefinite di sistema' },
@@ -247,6 +283,38 @@ I token sono archiviati crittografati e mai restituiti nell'UI.
 
 ### Test
 Clicca **Test** per inviare un evento di esempio all'URL del webhook e verificare che sia raggiungibile.
+## Metriche Prometheus
+
+Endpoint **\`/metrics\`** opt-in e protetto da token.
+
+- Attivalo impostando un token metriche (Impostazioni › Generale); senza token → 404
+- Esegui lo scrape con l'header \`Authorization: Bearer <token>\`
+- Espone \`ucm_certificates\`, \`ucm_certificate_authorities\`, \`ucm_scheduler_task_*\`, \`ucm_webhook_deliveries\`, \`ucm_acme_*\`
+
+## Cronologia di consegna dei webhook
+
+Apri la cronologia (icona orologio) su un webhook per vederne le consegne.
+
+- Stati **pending / delivered / failed** con ultimo codice HTTP ed errore
+- **Riprova** una consegna manualmente
+- Coda durevole con backoff esponenziale (fino a 5 tentativi)
+
+## Vista dello scheduler
+
+Impostazioni › Sistema mostra le attività in background.
+
+- Elenco attività con **stato**, **ultima esecuzione**, **durata** ed **errori**
+- **Esegui ora** su qualsiasi attività
+- Copre scadenza, CRL, consegna webhook, backup, rinnovo automatico…
+
+## Backup pianificati
+
+Impostazioni › Backup abilita i backup automatici.
+
+- Cadenza **giornaliera / settimanale / mensile**
+- **Ritenzione**: conserva i N più recenti, elimina i vecchi
+- Backup **cifrati** con la password di backup
+
 `
   }
 }

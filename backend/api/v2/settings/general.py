@@ -27,6 +27,8 @@ def get_general_settings():
         'backup_frequency': get_config('backup_frequency', 'daily'),
         'backup_retention_days': int(get_config('backup_retention_days', '30')),
         'backup_password': '',  # Never return password
+        'metrics_token': '',  # Never return the token
+        'metrics_enabled': bool(get_config('metrics_token', '')),
         'session_timeout': int(get_config('session_timeout', '28800')),
         'session_max_lifetime': int(get_config('session_max_lifetime', '86400')),
         'max_login_attempts': int(get_config('max_login_attempts', '5')),
@@ -36,6 +38,15 @@ def get_general_settings():
         'base_url': get_config('base_url', ''),
         'date_format': get_config('date_format', 'short'),
         'show_time': get_config('show_time', 'true') == 'true',
+        # Password policy
+        'min_password_length': int(get_config('min_password_length', '8')),
+        'max_password_length': int(get_config('max_password_length', '128')),
+        'password_require_uppercase': get_config('password_require_uppercase', 'true') == 'true',
+        'password_require_lowercase': get_config('password_require_lowercase', 'true') == 'true',
+        'password_require_numbers': get_config('password_require_numbers', 'true') == 'true',
+        'password_require_special': get_config('password_require_special', 'true') == 'true',
+        # Security toggles
+        'enforce_2fa': get_config('enforce_2fa', 'false') == 'true',
     })
 
 
@@ -50,7 +61,15 @@ def update_general_settings():
         'site_name', 'system_name', 'timezone', 'auto_backup_enabled', 'backup_frequency',
         'backup_retention_days', 'backup_password', 'session_timeout',
         'session_max_lifetime', 'max_login_attempts', 'lockout_duration',
-        'protocol_base_url', 'http_protocol_port', 'base_url', 'date_format', 'show_time'
+        'protocol_base_url', 'http_protocol_port', 'base_url', 'date_format', 'show_time',
+        # Password policy
+        'min_password_length', 'max_password_length',
+        'password_require_uppercase', 'password_require_lowercase',
+        'password_require_numbers', 'password_require_special',
+        # Security toggles
+        'enforce_2fa',
+        # Prometheus metrics bearer token (empty = disabled)
+        'metrics_token',
     ]
 
     # Validate http_protocol_port if provided
@@ -69,9 +88,22 @@ def update_general_settings():
     for key in allowed_keys:
         if key in data:
             value = data[key]
+            # Prometheus metrics token: the API never returns the current token,
+            # so a blank value means "keep current" (avoids wiping it when other
+            # general settings are saved). A sentinel disables it explicitly.
+            if key == 'metrics_token':
+                if not value:
+                    continue
+                if value == '__disable__':
+                    value = ''
             # Convert booleans to string
             if isinstance(value, bool):
                 value = 'true' if value else 'false'
+            # Backup password is used for unattended scheduled backups, so it
+            # must be stored — but encrypted at rest, never plaintext.
+            if key == 'backup_password' and value:
+                from utils.encryption import encrypt_if_needed
+                value = encrypt_if_needed(value)
             set_config(key, value)
 
     try:

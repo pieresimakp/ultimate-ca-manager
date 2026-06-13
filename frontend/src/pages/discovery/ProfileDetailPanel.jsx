@@ -6,10 +6,13 @@ export default function ProfileDetailPanel({ item, t }) {
   const ports = item.ports_list || (typeof item.ports === 'string' ? (() => { try { return JSON.parse(item.ports) } catch { return item.ports.split(',') } })() : item.ports) || [443]
 
   const scheduleLabel = (val) => {
-    if (!val) return t('discovery.manual')
-    const h = Math.round(val / 3600)
-    if (h < 24) return `${h}h`
-    return `${Math.round(h / 24)}d`
+    if (!val || val === 0) return t('discovery.manual')
+    const hours = Math.round(val / 60)
+    if (hours >= 24) {
+      const days = Math.round(hours / 24)
+      return `${days}d`
+    }
+    return `${hours}h`
   }
 
   return (
@@ -21,12 +24,12 @@ export default function ProfileDetailPanel({ item, t }) {
           <CompactField
             label={t('common.status')}
             value={
-              <Badge variant={item.enabled ? 'success' : 'secondary'} size="sm" dot>
-                {item.enabled ? t('common.enabled') : t('common.disabled')}
+              <Badge variant={item.schedule_enabled ? 'success' : 'secondary'} size="sm" dot>
+                {item.schedule_enabled ? t('common.enabled') : t('common.disabled')}
               </Badge>
             }
           />
-          <CompactField label={t('discovery.schedule')} value={scheduleLabel(item.schedule_interval)} />
+          <CompactField label={t('discovery.schedule')} value={scheduleLabel(item.schedule_interval_minutes)} />
           {item.notify_email && <CompactField label={t('discovery.notifyEmail')} value={item.notify_email} />}
         </CompactGrid>
       </CompactSection>
