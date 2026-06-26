@@ -137,8 +137,11 @@ export const acmeService = {
     return apiClient.post('/acme/client/request', data)
   },
 
-  async verifyChallenge(orderId, domain = null) {
-    return apiClient.post(`/acme/client/orders/${orderId}/verify`, domain ? { domain } : {})
+  async verifyChallenge(orderId, domain = null, force = false) {
+    const body = {}
+    if (domain) body.domain = domain
+    if (force) body.force = true
+    return apiClient.post(`/acme/client/orders/${orderId}/verify`, body)
   },
 
   async checkOrderStatus(orderId) {

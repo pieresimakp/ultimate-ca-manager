@@ -130,12 +130,17 @@ def _ldap_authenticate_user(provider, username, password):
             get_info=ALL
         )
 
-        # First bind as service account
+        # First bind as service account.
+        # check_names=False: we may request immutable-id attributes that don't
+        # exist in this server's schema (objectGUID on AD vs entryUUID on
+        # OpenLDAP) — the server simply returns the ones it has instead of
+        # ldap3 raising "invalid attribute type".
         conn = Connection(
             server,
             user=provider.ldap_bind_dn,
             password=_decrypt_ldap_password(provider),
-            auto_bind=True
+            auto_bind=True,
+            check_names=False,
         )
 
         # SECURITY: Escape username to prevent LDAP injection
@@ -147,14 +152,14 @@ def _ldap_authenticate_user(provider, username, password):
         extra_attrs = []
         if provider.account_status_attr:
             extra_attrs.append(provider.account_status_attr)
+        # Request all normal (*) and operational (+) attributes. This returns the
+        # immutable id wherever it lives — entryUUID (operational, OpenLDAP) or
+        # objectGUID (normal, AD) — without naming an attribute that may not exist
+        # in this schema (which makes ldap3 raise "invalid attribute type").
         conn.search(
             provider.ldap_base_dn,
             user_filter,
-            attributes=list(set([
-                provider.ldap_username_attr,
-                provider.ldap_email_attr,
-                provider.ldap_fullname_attr
-            ] + extra_attrs))
+            attributes=['*', '+'],
         )
 
         if not conn.entries:
@@ -272,9 +277,22 @@ def _ldap_authenticate_user(provider, username, password):
                 conn.unbind()
                 return None, 'group_denied'
 
+        # Immutable id for stable account matching (entryUUID/objectGUID).
+        stable_uid = None
+        for attr in ([provider.ldap_uid_attr] if getattr(provider, 'ldap_uid_attr', None)
+                     else ['objectGUID', 'entryUUID']):
+            try:
+                raw = getattr(user_entry, attr).value
+            except Exception:
+                raw = None
+            if raw:
+                stable_uid = raw.hex() if isinstance(raw, (bytes, bytearray)) else str(raw).strip()
+                break
+
         # Return user info
         return {
             'dn': user_dn,
+            'uid': stable_uid,  # immutable id (None → matching falls back to dn/username)
             'username': str(getattr(user_entry, provider.ldap_username_attr, username)),
             'email': str(getattr(user_entry, provider.ldap_email_attr, '')),
             'fullname': str(getattr(user_entry, provider.ldap_fullname_attr, '')),

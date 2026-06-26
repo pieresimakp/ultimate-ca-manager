@@ -644,6 +644,19 @@ def create_app(config_name=None):
         except ImportError:
             pass
 
+        # Register backup retention task (daily; runs even when auto-backup is off)
+        try:
+            from services.backup.schedule import run_backup_retention
+            scheduler.register_task(
+                name="backup_retention",
+                func=run_backup_retention,
+                interval=86400,  # 24 hours
+                description="Prune backups past their retention period"
+            )
+            app.logger.info("Registered backup retention task (daily)")
+        except ImportError:
+            pass
+
         # Register webhook delivery task (drains the durable delivery queue with retry)
         try:
             from services.webhook_service import WebhookService
@@ -1140,8 +1153,11 @@ def init_database(app):
             )
             admin.set_password(app.config["INITIAL_ADMIN_PASSWORD"])
             admin.force_password_change = True
+            # Exempt the bootstrap admin from forced 2FA enrolment (#141) so
+            # enabling global enforcement can never lock out this account.
+            admin.totp_exempt = True
             db.session.add(admin)
-            
+
             # Add initial system config
             configs = [
                 SystemConfig(key="app.initialized", value="true", 

@@ -1,7 +1,7 @@
 {
   "name": "ucm-radix",
   "private": true,
-  "version": "2.170.0",
+  "version": "2.178.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -67,5 +67,8 @@
     "tailwindcss": "^3.4.19",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "ws": "8.21.0"
   }
 }

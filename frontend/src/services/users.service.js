@@ -28,12 +28,24 @@ export const usersService = {
     return apiClient.post(`/users/${id}/reset-password`)
   },
 
+  async reset2FA(id) {
+    return apiClient.post(`/users/${id}/reset-2fa`)
+  },
+
   async getPasswordPolicy() {
     return apiClient.get('/users/password-policy')
   },
 
   async toggleActive(id) {
     return apiClient.post(`/users/${id}/toggle-active`)
+  },
+
+  async linkSso(id, { provider_id, sso_username } = {}) {
+    return apiClient.post(`/users/${id}/link-sso`, { provider_id, sso_username })
+  },
+
+  async unlinkSso(id) {
+    return apiClient.post(`/users/${id}/unlink-sso`)
   },
 
   // Bulk operations

@@ -1,0 +1,126 @@
+# Default values for the UCM Helm chart.
+# UCM is a single-instance application: it ships a background scheduler that is
+# not yet HA-safe and defaults to a local SQLite database. Keep replicaCount at
+# 1 (see the HA note in README.md).
+
+image:
+  repository: neyslim/ultimate-ca-manager
+  # Defaults to the chart appVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+## Single instance only — SQLite + per-pod scheduler are not HA-safe.
+replicaCount: 1
+
+## Fully qualified domain name UCM serves on. Used for the self-signed UI
+## certificate and as the default base URL for issued AIA/CRL/OCSP URLs.
+fqdn: ucm.local
+
+## Initial admin password (first boot only). Strongly recommended to override.
+## Leave empty to keep the image default (changeme123) — change it after login.
+initialAdminPassword: ""
+
+## App secrets. If left empty the chart generates random values on first install
+## and PERSISTS them across upgrades (via lookup) so sessions survive restarts.
+secrets:
+  secretKey: ""   # UCM_SECRET_KEY (Flask)
+  jwtSecret: ""   # UCM_JWT_SECRET
+
+## Database backend.
+##  - sqlite (default): file in the data PVC, single instance.
+##  - postgresql: set databaseUrl to an external PostgreSQL 13+ (HA-capable
+##    storage, but the app itself still runs as a single replica).
+database:
+  type: sqlite
+  # e.g. postgresql://ucm:password@postgres:5432/ucm  (used when type=postgresql)
+  databaseUrl: ""
+  # Reference an existing Secret key instead of putting the URL in values.
+  existingSecret: ""
+  existingSecretKey: DATABASE_URL
+
+## Persistence. /etc/ucm holds master.key (decrypts every private key in the DB)
+## and MUST survive pod restarts — losing it makes all encrypted keys
+## unrecoverable. /opt/ucm/data holds the DB, CA files, sessions and backups.
+persistence:
+  enabled: true
+  storageClass: ""
+  data:
+    size: 5Gi
+    accessMode: ReadWriteOnce
+    existingClaim: ""
+  etc:
+    size: 64Mi
+    accessMode: ReadWriteOnce
+    existingClaim: ""
+
+## Extra environment variables (UCM_* etc.), passed verbatim.
+extraEnv: []
+  # - name: UCM_LOG_LEVEL
+  #   value: DEBUG
+
+service:
+  type: ClusterIP
+  httpsPort: 8443   # UI / API / ACME / SCEP / EST (TLS terminated by UCM)
+  httpPort: 8080    # CDP / OCSP / AIA protocol endpoints (plain HTTP)
+  annotations: {}
+
+## Ingress. UCM terminates TLS itself, so for the HTTPS UI you typically want
+## passthrough OR a controller annotation telling it the backend speaks HTTPS
+## (e.g. nginx: nginx.ingress.kubernetes.io/backend-protocol: "HTTPS").
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  host: ucm.local
+  tls: []
+    # - secretName: ucm-tls
+    #   hosts: [ucm.local]
+  ## Expose the plain-HTTP protocol port (8080) under /cdp, /ocsp on a separate
+  ## host or path for ACME HTTP-01 / CRL / OCSP clients that need cleartext.
+  protocolHttp:
+    enabled: false
+    host: pki.local
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+## Probes hit https://:8443/health (UCM serves a self-signed cert; the HTTPS
+## scheme tells the kubelet to skip verification).
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 40
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 20
+  periodSeconds: 15
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+## UCM writes to /etc/ucm and /opt/ucm/data and manages file permissions in its
+## entrypoint, so it runs as root by default. Override only if your image/setup
+## supports a non-root UID with writable volumes.
+podSecurityContext: {}
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+podLabels: {}

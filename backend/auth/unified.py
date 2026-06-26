@@ -269,32 +269,6 @@ class AuthManager:
     
 
 
-def create_session_for_user(user):
-    """
-    Helper function to establish a session for a user.
-    Used by SSO callback to establish session.
-    
-    Args:
-        user: User model instance
-    
-    Returns:
-        dict: {'user': dict}
-    """
-    now = utc_now()
-    # Regenerate session ID to prevent session fixation
-    session.clear()
-    session['user_id'] = user.id
-    session['username'] = user.username
-    session['login_time'] = now.isoformat()
-    session['last_activity'] = now.isoformat()
-    session.permanent = True
-    session.modified = True
-    
-    return {
-        'user': user.to_dict() if hasattr(user, 'to_dict') else {'id': user.id, 'username': user.username}
-    }
-
-
 def require_auth(permissions=None):
     """
     Decorator to protect routes with authentication
@@ -323,7 +297,19 @@ def require_auth(permissions=None):
                     'error': 'Unauthorized',
                     'message': 'Authentication required'
                 }), 401
-            
+
+            # Forced-2FA-enrolment gate (#141): a session flagged for mandatory
+            # enrolment may only reach the enrolment endpoints (and logout) until
+            # TOTP is confirmed. Checked before permissions so an un-enrolled
+            # session is uniformly blocked regardless of its permissions.
+            from auth.twofa_enforcement import ENROLL_SESSION_KEY, ENROLL_ALLOWED_PATHS
+            if session.get(ENROLL_SESSION_KEY) and request.path not in ENROLL_ALLOWED_PATHS:
+                return jsonify({
+                    'error': 'Forbidden',
+                    'message': '2FA enrolment required',
+                    'must_enroll_2fa': True
+                }), 403
+
             # Check permissions if specified
             if permissions:
                 user_perms = auth_result['permissions']
@@ -343,7 +329,7 @@ def require_auth(permissions=None):
             g.auth_method = auth_result['auth_method']
             g.permissions = auth_result['permissions']
             g.user_id = auth_result['user_id']
-            
+
             # Call the actual route function
             return f(*args, **kwargs)
         

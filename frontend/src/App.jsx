@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { AuthProvider, ThemeProvider, NotificationProvider, MobileProvider, WindowManagerProvider, useAuth } from './contexts'
 import { WebSocketProvider } from './hooks/useWebSocket'
-import { AppShell, ErrorBoundary, LoadingSpinner, SessionWarning, ForcePasswordChange, SafeModeOverlay, DetailWindowLayer } from './components'
+import { AppShell, ErrorBoundary, LoadingSpinner, SessionWarning, ForcePasswordChange, ForceEnroll2FA, SafeModeOverlay, DetailWindowLayer } from './components'
 
 // Auto-reload on chunk load failure (stale cache after update)
 function lazyWithRetry(importFn) {
@@ -45,6 +45,7 @@ const HSMPage = lazyWithRetry(() => import('./pages/HSMPage'))
 const DevShowcasePage = lazyWithRetry(() => import('./pages/DevShowcasePage'))
 const PoliciesPage = lazyWithRetry(() => import('./pages/PoliciesPage'))
 const ApprovalsPage = lazyWithRetry(() => import('./pages/ApprovalsPage'))
+const KeyRecoveryPage = lazyWithRetry(() => import('./pages/KeyRecoveryPage'))
 const ReportsPage = lazyWithRetry(() => import('./pages/ReportsPage'))
 const DiscoveryPage = lazyWithRetry(() => import('./pages/DiscoveryPage'))
 const SSHCAsPage = lazyWithRetry(() => import('./pages/SSHCAsPage'))
@@ -91,18 +92,24 @@ function PermissionRoute({ children, permission }) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, loading, sessionChecked, forcePasswordChange, clearForcePasswordChange, logout } = useAuth()
-  
+  const { isAuthenticated, loading, sessionChecked, forcePasswordChange, clearForcePasswordChange, mustEnroll2fa, checkSession, logout } = useAuth()
+
   return (
     <Suspense fallback={<PageLoader />}>
       {/* Global session warning (when logged in) */}
       {isAuthenticated && <SessionWarning onLogout={logout} />}
-      
+
+      {/* Mandatory 2FA enrolment overlay (#141) — takes precedence over the
+          password-change prompt; blocks all access until TOTP is confirmed. */}
+      {isAuthenticated && mustEnroll2fa && (
+        <ForceEnroll2FA onComplete={checkSession} />
+      )}
+
       {/* Force password change modal */}
-      {isAuthenticated && forcePasswordChange && (
+      {isAuthenticated && !mustEnroll2fa && forcePasswordChange && (
         <ForcePasswordChange onComplete={clearForcePasswordChange} />
       )}
-      
+
       <Routes>
         <Route 
           path="/login" 
@@ -153,6 +160,7 @@ function AppRoutes() {
           {/* Governance */}
           <Route path="/policies" element={<PermissionRoute permission="read:policies"><PoliciesPage /></PermissionRoute>} />
           <Route path="/approvals" element={<PermissionRoute permission="read:approvals"><ApprovalsPage /></PermissionRoute>} />
+          <Route path="/key-recovery" element={<PermissionRoute permission="read:key_recovery"><KeyRecoveryPage /></PermissionRoute>} />
           <Route path="/reports" element={<PermissionRoute permission="read:audit"><ReportsPage /></PermissionRoute>} />
           <Route path="/discovery" element={<PermissionRoute permission="read:certificates"><DiscoveryPage /></PermissionRoute>} />
           {/* SSH */}

@@ -33,6 +33,9 @@ export default function LetsEncryptTab({
   testingConnection,
   connectionResult,
   onBlurSave,
+  onBlurSaveInt,
+  localDnsTimeout,
+  onLocalDnsTimeoutChange,
   onUpdateClientSetting,
   onRegisterProxy,
   onUnregisterProxy,
@@ -273,6 +276,18 @@ export default function LetsEncryptTab({
               <p className="text-xs status-warning-text">{t('sso.sslWarning')}</p>
             </div>
           )}
+
+          <Input
+            label={t('acme.dnsPropagationTimeout')}
+            type="number"
+            min="0"
+            max="3600"
+            value={localDnsTimeout}
+            onChange={(e) => onLocalDnsTimeoutChange(e.target.value)}
+            onBlur={() => onBlurSaveInt('dns_propagation_timeout', localDnsTimeout, onLocalDnsTimeoutChange, { min: 0, max: 3600, fallback: 120 })}
+            disabled={!canWrite}
+            helperText={t('acme.dnsPropagationTimeoutHelper')}
+          />
 
           <Select
             label={t('acme.keyType')}

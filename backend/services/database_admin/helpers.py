@@ -22,6 +22,37 @@ logger = logging.getLogger(__name__)
 UCM_ENV_PATH = Path("/etc/ucm/ucm.env")
 BACKUP_DIR = DATA_DIR / "backups" / "db_migration"
 
+# Pre-migration DB snapshots are raw safety copies taken before every migration
+# run. They are never pruned by the user-facing backup retention, so without a
+# cap they accumulate unbounded and can fill the disk. Keep only the N most
+# recent (override with UCM_DB_MIGRATION_KEEP).
+try:
+    DB_MIGRATION_KEEP = max(1, int(os.environ.get("UCM_DB_MIGRATION_KEEP", "5")))
+except ValueError:
+    DB_MIGRATION_KEEP = 5
+
+
+def _prune_db_migration_snapshots(keep: int = DB_MIGRATION_KEEP) -> int:
+    """Keep only the ``keep`` most recent pre-migration snapshots. Returns count removed."""
+    try:
+        snaps = sorted(
+            (p for p in BACKUP_DIR.glob("ucm-*") if p.suffix in (".db", ".dump")),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return 0
+    removed = 0
+    for path in snaps[keep:]:
+        try:
+            path.unlink()
+            removed += 1
+        except OSError:
+            continue
+    if removed:
+        logger.info(f"Pruned {removed} old pre-migration DB snapshot(s), kept {keep}")
+    return removed
+
 
 def _redact_uri(uri: str) -> str:
     """Hide password in DB URI for display."""
@@ -64,6 +95,7 @@ def _backup_current_db() -> Optional[Path]:
             os.chmod(dst, 0o600)
         except OSError:
             pass
+        _prune_db_migration_snapshots()
         return dst
     else:
         # PostgreSQL: use pg_dump
@@ -110,6 +142,7 @@ def _backup_current_db() -> Optional[Path]:
             except OSError:
                 pass
             logger.info(f"PostgreSQL backup created: {output}")
+            _prune_db_migration_snapshots()
             return output
 
         except FileNotFoundError:

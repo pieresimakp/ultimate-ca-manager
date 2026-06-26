@@ -1,5 +1,24 @@
 # UCM Design System
 
+> Source of truth: `src/index.css` (tokens, component classes) and
+> `src/contexts/ThemeContext.jsx` (per-theme color values). This document
+> describes what those files actually implement — keep it in sync when they change.
+
+## Theming model
+
+Colors are **not** hardcoded. `ThemeContext.jsx` writes CSS custom properties on
+`document.documentElement` at runtime. There are **3 theme families** × **2 modes**:
+
+| Family | `id` | Accent | Modes |
+|--------|------|--------|-------|
+| Gray (default) | `gray` | `#4F8EF7` | dark / light |
+| Purple Night | `purple` | `#A855F7` | dark / light |
+| Orange Sunset | `sunset` | `#F97316` | dark / light |
+
+Mode resolves from `system` / `dark` / `light` (persisted in localStorage +
+server prefs). Every component must read tokens (`var(--…)` or the Tailwind
+aliases below) so it adapts to all 6 combinations. Never hardcode a hex.
+
 ## Typography
 
 ### Font Sizes
@@ -15,223 +34,199 @@
 | `text-2xl` | 24px | Page titles |
 
 ### Font Families
-- `font-sans` - Inter (UI text)
-- `font-mono` - Fira Code (code, serials, hashes)
+- `font-sans` — Inter (UI text), self-hosted (`/fonts/Inter-*.woff2`)
+- `font-mono` — Fira Code (code, serials, hashes), self-hosted. `.font-mono`
+  also applies `font-size: 0.92em; letter-spacing: -0.01em` (Fira runs wide).
 
 ## Colors
 
+All values below are the **gray / dark** defaults; they shift per theme family
+and mode. Tailwind aliases (`tailwind.config.js`) map to the CSS vars.
+
 ### Background
-| Token | Usage |
-|-------|-------|
-| `bg-bg-primary` | Main page background |
-| `bg-bg-secondary` | Cards, panels |
-| `bg-bg-tertiary` | Inputs, nested elements |
+| Tailwind alias | CSS var | Usage |
+|----------------|---------|-------|
+| `bg-bg-primary` | `--bg-primary` | Main page background |
+| `bg-bg-secondary` | `--bg-secondary` | Cards, panels |
+| `bg-bg-tertiary` | `--bg-tertiary` | Inputs, nested elements |
 
 ### Text
-| Token | Usage |
-|-------|-------|
-| `text-text-primary` | Headings, important text |
-| `text-text-secondary` | Body text |
-| `text-text-tertiary` | Muted, placeholder |
+| Tailwind alias | CSS var | Usage |
+|----------------|---------|-------|
+| `text-text-primary` | `--text-primary` | Headings, important text |
+| `text-text-secondary` | `--text-secondary` | Body text |
+| `text-text-tertiary` | `--text-tertiary` | Muted, placeholder |
 
-### Status
-| Token | Usage |
-|-------|-------|
-| `text-status-success` / `bg-status-success` | Valid, active, success |
-| `text-status-warning` / `bg-status-warning` | Expiring, pending |
-| `text-status-danger` / `bg-status-danger` | Expired, revoked, error |
-| `text-status-info` / `bg-status-info` | Info, neutral |
+### Accent & status
+| Tailwind alias | CSS var | Usage |
+|----------------|---------|-------|
+| `accent-primary` | `--accent-primary` | Primary actions, links |
+| `accent-pro` | `--accent-pro` | "Pro"/highlight accent (purple/pink, theme-dependent) |
+| `status-success` / `accent-success` | `--accent-success` | Valid, active |
+| `status-warning` / `accent-warning` | `--accent-warning` | Expiring, pending |
+| `status-danger` / `status-error` / `accent-danger` | `--accent-danger` | Expired, revoked, error |
+| `status-info` | `--accent-primary` | Info, neutral |
+| `border` | `--border` | Default borders |
 
-### Accent
-| Token | Usage |
-|-------|-------|
-| `text-accent-primary` / `bg-accent-primary` | Primary actions, links |
-| `text-accent-secondary` / `bg-accent-secondary` | Secondary highlights |
+> **There is no `accent-secondary` token.** It is not defined in the Tailwind
+> theme, `ThemeContext`, or `index.css`. Use `accent-pro` for a secondary
+> highlight. (A few legacy usages of `text-accent-secondary` exist in the
+> codebase and render nothing — they should be migrated.)
 
-### Status with Opacity
-```jsx
-// Background with 10% opacity
-bg-status-success/10
-bg-status-warning/10
-bg-status-danger/10
+### Opacity with CSS-var colors — use the helper classes
+Tailwind's `/opacity` syntax does **not** work on these var-backed colors. Use
+the predefined classes instead of `bg-bg-tertiary/40`:
+- `bg-tertiary-op30 / -op50 / -op60 / -op80`, `bg-secondary-op50`,
+  `border-op30 / -op40 / -op50` (see `index.css`).
+- Status tints: `status-success-bg` / `status-success-text` (+ `-bg-solid`),
+  and the same for `status-warning`, `status-danger`, `status-primary`.
 
-// Background with 20% opacity (hover states)
-bg-status-success/20
-```
+### Icon background classes (theme-aware, set by ThemeContext)
+`icon-bg-blue`, `icon-bg-orange`, `icon-bg-violet`, `icon-bg-green`,
+`icon-bg-teal` — colored tile backgrounds that avoid "ton sur ton" clashes per
+theme. Backing vars: `--icon-{blue,orange,violet,amber,emerald,teal}-{bg,text}`.
 
 ## Spacing
 
-### Standard Scale
 | Token | Size | Usage |
 |-------|------|-------|
-| `gap-1` | 4px | Tight inline elements |
-| `gap-2` | 8px | Default gap (most common) |
-| `gap-3` | 12px | Loose inline elements |
-| `gap-4` | 16px | Section spacing |
-| `p-2` | 8px | Compact padding |
-| `p-3` | 12px | Card inner padding |
-| `p-4` | 16px | Section padding |
-| `px-3 py-2` | - | Button/input padding |
+| `gap-1` / `p-1` | 4px | Tight inline |
+| `gap-2` / `p-2` | 8px | Default gap (most common) |
+| `gap-3` / `p-3` | 12px | Card inner padding |
+| `gap-4` / `p-4` | 16px | Section spacing |
+| `px-3 py-2` | — | Button/input padding |
 
-### Vertical Rhythm
-```jsx
-// Sections
-<div className="space-y-4"> // 16px between sections
-
-// Compact lists
-<div className="space-y-2"> // 8px between items
-```
+Vertical rhythm: `space-y-4` between sections, `space-y-2` for compact lists.
 
 ## Border Radius
 
 | Token | Size | Usage |
 |-------|------|-------|
-| `rounded-sm` | 2px | Subtle rounding |
-| `rounded` | 4px | Default |
-| `rounded-md` | 4px | Same as default |
-| `rounded-lg` | 6px | Cards, panels (preferred) |
+| `rounded-sm` | 2px | Subtle |
+| `rounded` / `rounded-md` | 4px | Default |
+| `rounded-lg` | 6px | Cards, panels |
 | `rounded-xl` | 8px | Large cards |
 | `rounded-full` | 50% | Circles, pills |
 
-**Preferred**: `rounded-lg` for most containers.
+Card classes (`card-soft`, `card-interactive`, `elevated`) use a literal
+`12px` radius. Buttons use `8px`.
 
-## Shadows
+## Shadows & elevation
 
-| Token | Usage |
-|-------|-------|
-| `shadow-sm` | Subtle elevation |
-| `shadow-lg` | Cards, dropdowns |
-| `shadow-xl` | Modals, overlays |
+`index.css` defines a layered shadow scale (not plain Tailwind shadows):
 
-## Transitions
+| Var | `elevation-*` class | Usage |
+|-----|---------------------|-------|
+| `--shadow-xs` | `elevation-1` (`--shadow-sm`) | Resting cards/buttons |
+| `--shadow-sm` | — | Hover lift |
+| `--shadow-md` | `elevation-2` | Elevated cards |
+| `--shadow-lg` | `elevation-3` | Dropdowns, popovers |
+| `--shadow-xl` | `elevation-4` | Modals, overlays |
 
-```jsx
-// Color changes (buttons, links)
-transition-colors duration-200
+Extras: `--shadow-glow-{primary,success,danger,warning}` (focus/hover glow),
+`--shadow-inner-highlight`, `--shadow-inner-sm`, `--floating-window-shadow`.
 
-// All properties (complex animations)
-transition-all duration-200
+## Gradients
 
-// Transform only
-transition-transform duration-200
-```
+| Var | Usage |
+|-----|-------|
+| `--gradient-primary` | Primary gradient buttons (`btn-gradient`) |
+| `--gradient-success` / `--gradient-danger` | Success/danger gradient buttons |
+| `--gradient-surface` | Panel surfaces |
+| `--gradient-shine` | Highlight sheen |
+| `--gradient-accent` (per theme) | Brand gradient (from `--gradient-from`/`--gradient-to`) |
+| `--logo-gradient-{start,mid,end,accent}` | Orange logo gradient (`#fb923c → #f97316 → #ea580c`) |
+
+## Glassmorphism
+
+`--glass-blur` (12px), `--glass-bg`, `--glass-border`, `--glass-shadow` — used
+for floating panels / overlays.
+
+## Motion (timing & easing)
+
+| Var | Value | Use |
+|-----|-------|-----|
+| `--duration-fast` | 150ms | Transforms, taps |
+| `--duration-normal` | 250ms | Color/box-shadow |
+| `--duration-slow` | 400ms | Large transitions |
+| `--ease-smooth` | `cubic-bezier(0.4,0,0.2,1)` | Default |
+| `--ease-out` / `--ease-bounce` / `--ease-spring` | — | Entrances, playful motion |
+
+Keyframe animations (Tailwind): `animate-fade-in`, `animate-slide-up`,
+`animate-slide-in-right`, `animate-pulse-slow`.
 
 ## Component Patterns
 
-### Buttons
+### Buttons (`components/Button.jsx`)
 ```jsx
 <Button variant="primary" size="sm">Action</Button>
-// Variants: primary, secondary, ghost, danger
-// Sizes: sm, default, lg
 ```
+- **Variants**: `primary` (gradient — `btn-gradient`), `secondary` (`btn-soft`),
+  `success`, `danger` (gradient), `danger-soft`, `warning-soft`, `ghost`,
+  `outline`. Non-gradient variants get a `focus-ring`.
+- **Sizes**: `xs`, `sm` (default), `default`, `lg`.
+- `loading` prop shows a spinner + `loadingText`.
 
-### Badges
+`primary` is a **gradient with a shine sweep on hover** (`--gradient-primary`),
+not a flat `bg-accent-primary`. Match this when rebuilding buttons elsewhere.
+
+### Badges (`components/Badge.jsx`)
 ```jsx
-<Badge variant="success">Active</Badge>
-// Variants: success, warning, danger, info, purple, orange
+<Badge variant="success" dot pulse icon={Icon}>Active</Badge>
 ```
+- **Semantic variants**: `default`, `primary`, `secondary`, `success`,
+  `warning`, `danger`, `info`, `outline`.
+- **Color aliases** (theme-aware): `emerald`, `red`, `blue`, `yellow`,
+  `purple`/`violet`, `amber`, `orange`, `cyan`/`teal`, `gray`.
+- **Props**: `dot` (status dot), `pulse` (animate dot), `icon`, `size`
+  (`sm` pill / `default` / `lg`). Base class `badge-enhanced`.
+- Helpers: `<ExperimentalBadge />`, `<CATypeIcon isRoot />`.
 
-### Cards
+### Cards (`components/Card.jsx`)
 ```jsx
-<Card variant="elevated">
-  <Card.Header icon={Icon} title="Title" />
+<Card variant="elevated" accent="primary">
+  <Card.Header icon={Icon} iconColor="primary" title="Title" subtitle="…" action={…} />
   <Card.Body>Content</Card.Body>
+  <Card.Footer>…</Card.Footer>
 </Card>
 ```
+- **Variants**: `default`/`soft` (`card-soft`), `elevated` (`elevation-2`),
+  `bordered`. `interactive` makes it a clickable card with a lift effect
+  (`card-interactive`: `translateY(-2px)` + accent-tinted border on hover).
+- **`accent`** left-border: `primary`, `success`, `warning`, `danger`, `info`.
+- `Card.Header` renders an `IconBadge` + `section-header-gradient`.
 
-### Status Indicators
+### Status indicators
 ```jsx
-// Dot indicator
-<span className="w-2 h-2 rounded-full bg-status-success" />
-
-// Badge style
-<span className="px-2 py-0.5 rounded-full text-2xs bg-status-success/10 text-status-success">
-  Active
-</span>
-```
-
-### Icon Backgrounds
-```jsx
-// Use CSS classes from ThemeContext
-<div className="icon-bg-blue"> // Blue themed
-<div className="icon-bg-orange"> // Orange themed
-<div className="icon-bg-violet"> // Purple themed
+<span className="w-2 h-2 rounded-full status-success-bg-solid" />
+<span className="px-2 py-px rounded-full text-2xs status-success-bg status-success-text">Active</span>
 ```
 
 ## Responsive Breakpoints
 
-| Breakpoint | Min Width | Usage |
-|------------|-----------|-------|
-| (default) | 0px | Mobile |
-| `sm:` | 640px | Large mobile |
-| `md:` | 768px | Tablet |
-| `lg:` | 1024px | Desktop |
-| `xl:` | 1280px | Wide desktop |
-
-### Common Patterns
-```jsx
-// Hide on mobile, show on desktop
-<div className="hidden lg:block">
-
-// Different padding
-<div className="p-3 lg:p-4">
-
-// Grid columns
-<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-```
-
-## Theme Variables
-
-Defined in `ThemeContext.jsx`, applied via CSS custom properties:
-
-```css
---bg-primary
---bg-secondary
---bg-tertiary
---text-primary
---text-secondary
---text-tertiary
---border
---accent-primary
---accent-success
---accent-warning
---accent-danger
---accent-pro
-```
-
-### Icon Background Variables
-```css
---icon-blue-bg
---icon-orange-bg
---icon-violet-bg
---icon-green-bg
---icon-red-bg
---icon-cyan-bg
-```
+| Breakpoint | Min Width |
+|------------|-----------|
+| (default) | 0px (mobile) |
+| `sm:` | 640px |
+| `md:` | 768px |
+| `lg:` | 1024px |
+| `xl:` | 1280px |
 
 ## Do's and Don'ts
 
 ### Do
 ```jsx
-// Use design tokens
-<p className="text-sm text-text-secondary">
-
-// Use semantic status colors
-<span className="text-status-danger">
-
-// Use consistent spacing
-<div className="p-4 space-y-4">
+<p className="text-sm text-text-secondary">          // design tokens
+<span className="status-danger-text">                // semantic status
+<div className="p-4 space-y-4">                      // consistent spacing
+<div className="bg-tertiary-op40">                   // var-color opacity helper
 ```
 
 ### Don't
 ```jsx
-// Hardcoded colors
-<p className="text-gray-500"> // BAD
-<span className="text-red-500"> // BAD
-
-// Arbitrary values
-<p className="text-[13px]"> // BAD - Use text-sm or text-xs
-
-// Inline styles for colors
-<div style={{ color: '#ff0000' }}> // BAD
+<p className="text-gray-500">                         // BAD — hardcoded palette
+<div style={{ color: '#ff0000' }}>                    // BAD — inline hex
+<p className="text-[13px]">                            // BAD — arbitrary size
+<div className="bg-bg-tertiary/40">                    // BAD — /opacity on var color
+<span className="text-accent-secondary">              // BAD — token doesn't exist
 ```

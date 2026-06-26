@@ -124,14 +124,23 @@ def _process_ocsp_request(request_der: bytes) -> Response:
     # RFC 6960 §4.4.1: when client sends a nonce, the response MUST include
     # the same nonce. A cached response holds the nonce of an earlier
     # request, so we cannot reuse it here — regenerate fresh.
-    cached = None if request_nonce else ocsp_service.get_cached_response(ca.id, cert_serial_hex)
+    cached = None if request_nonce else ocsp_service.get_cached_response(
+        ca.id, cert_serial_hex, hash_algorithm)
     if cached:
         resp = Response(cached, status=200, content_type=OCSP_CONTENT_TYPE)
         _add_cache_headers(resp, request_nonce)
         return resp
 
     response_der, status_str = ocsp_service.generate_response(
-        ca=ca, cert_serial=cert_serial, request_nonce=request_nonce
+        ca=ca,
+        cert_serial=cert_serial,
+        request_nonce=request_nonce,
+        # Echo the request CertID verbatim (RFC 6960 §4.2.1): strict clients
+        # (Cisco ASA, RFC 5019 lightweight profile) reject a SingleResponse
+        # whose CertID hash algorithm differs from the request (#143).
+        hash_algorithm=hash_algorithm,
+        issuer_name_hash=issuer_name_hash,
+        issuer_key_hash=issuer_key_hash,
     )
 
     logger.info(f"OCSP response for serial {cert_serial_hex}: {status_str}")

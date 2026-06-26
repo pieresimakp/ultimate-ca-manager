@@ -151,6 +151,13 @@ export default function SsoLdapFields({
             <Input label={t('sso.fullnameAttr')} value={formData.ldap_fullname_attr} onChange={e => handleChange('ldap_fullname_attr', e.target.value)} placeholder={formData._directoryType === 'ad' ? 'displayName' : 'cn'} />
           </div>
           <Input
+            label={t('sso.uidAttr')}
+            value={formData.ldap_uid_attr || ''}
+            onChange={e => handleChange('ldap_uid_attr', e.target.value)}
+            placeholder={formData._directoryType === 'ad' ? 'objectGUID' : 'entryUUID'}
+            helperText={t('sso.uidAttrHelp')}
+          />
+          <Input
             label={t('sso.accountStatusAttr')}
             value={formData.account_status_attr || ''}
             onChange={e => handleChange('account_status_attr', e.target.value)}

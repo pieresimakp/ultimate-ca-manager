@@ -1,0 +1,25 @@
+apiVersion: v2
+name: ucm
+description: Ultimate Certificate Manager — web-based Certificate Authority and PKI platform (ACME, SCEP, EST, OCSP, CRL/CDP) for in-cluster deployment.
+type: application
+# Chart version — bump on chart changes, independent of the app version.
+version: 0.1.0
+# Application version this chart deploys (matches the UCM release / image tag).
+appVersion: "2.170"
+home: https://ucm.tools
+sources:
+  - https://github.com/NeySlim/ultimate-ca-manager
+keywords:
+  - pki
+  - certificate-authority
+  - acme
+  - scep
+  - est
+  - ocsp
+  - x509
+maintainers:
+  - name: NeySlim
+    url: https://github.com/NeySlim
+icon: https://raw.githubusercontent.com/NeySlim/ultimate-ca-manager/main/docs/screenshots/logo.png
+annotations:
+  category: Security

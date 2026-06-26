@@ -98,6 +98,20 @@ def _apply_retention(retention_days: int) -> int:
     return removed
 
 
+def run_backup_retention() -> int:
+    """Apply backup retention independently of the scheduled-backup run.
+
+    Registered as its own daily scheduler task so retention is enforced even when
+    automatic backups are disabled (manual backups would otherwise accumulate
+    forever). Honours `backup_retention_days` (0 / unset → no pruning).
+    """
+    try:
+        retention = int(_get('backup_retention_days', '30'))
+    except (ValueError, TypeError):
+        retention = 30
+    return _apply_retention(retention)
+
+
 def _record_last_run(ts: datetime) -> None:
     cfg = SystemConfig.query.filter_by(key=_LAST_RUN_KEY).first()
     if cfg:

@@ -1,0 +1,41 @@
+{{- if .Values.persistence.enabled }}
+{{- if not .Values.persistence.data.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ucm.dataPvcName" . }}
+  labels:
+    {{- include "ucm.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.data.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.data.size | quote }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}
+---
+{{- if not .Values.persistence.etc.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ucm.etcPvcName" . }}
+  labels:
+    {{- include "ucm.labels" . | nindent 4 }}
+  annotations:
+    # /etc/ucm holds master.key — deleting this PVC makes every encrypted
+    # private key in the database unrecoverable. Keep it.
+    "helm.sh/resource-policy": keep
+spec:
+  accessModes:
+    - {{ .Values.persistence.etc.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.etc.size | quote }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

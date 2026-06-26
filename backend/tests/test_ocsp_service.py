@@ -91,6 +91,42 @@ class TestGenerateResponse:
             resp = ocsp.load_der_ocsp_response(der)
             assert resp.response_status == ocsp.OCSPResponseStatus.SUCCESSFUL
 
+    def test_response_echoes_request_hash_algorithm(self, app, create_ca, create_cert):
+        """Regression for #143: Cisco ASA sends a SHA-1 CertID; the response
+        SingleResponse MUST use the same hash algorithm (and the same issuer
+        name/key hashes) so the client can match the status to its request."""
+        import base64
+        with app.app_context():
+            ca = create_ca(cn='OCSP SHA1 CA')
+            cert = create_cert(cn='sha1.example.com', ca_id=ca['id'])
+            ca_obj = _ca_model(ca)
+            cert_obj = _cert_model(cert)
+            issuer = x509.load_pem_x509_certificate(base64.b64decode(ca_obj.crt))
+            leaf = x509.load_pem_x509_certificate(base64.b64decode(cert_obj.crt))
+            serial = leaf.serial_number
+
+            # Build a SHA-1 request exactly like Cisco ASA does
+            req = ocsp.OCSPRequestBuilder().add_certificate(
+                leaf, issuer, hashes.SHA1()).build()
+            der_req = req.public_bytes(__import__('cryptography').hazmat.primitives.serialization.Encoding.DER)
+            parsed = OCSPService().parse_request(der_req)
+            assert parsed is not None
+            assert isinstance(parsed.hash_algorithm, hashes.SHA1)
+
+            der, status = OCSPService().generate_response(
+                ca_obj, serial,
+                hash_algorithm=parsed.hash_algorithm,
+                issuer_name_hash=parsed.issuer_name_hash,
+                issuer_key_hash=parsed.issuer_key_hash,
+            )
+            assert status == 'good'
+            resp = ocsp.load_der_ocsp_response(der)
+            sr = next(iter(resp.responses))
+            assert isinstance(sr.hash_algorithm, hashes.SHA1)
+            assert sr.issuer_name_hash == parsed.issuer_name_hash
+            assert sr.issuer_key_hash == parsed.issuer_key_hash
+            assert sr.serial_number == serial
+
 
 class TestCleanup:
     def test_cleanup_runs(self, app):

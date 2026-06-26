@@ -193,7 +193,8 @@ def create_user():
     if User.query.filter_by(username=data['username']).first():
         return error_response('Username already exists', 409)
 
-    if User.query.filter_by(email=data['email']).first():
+    # Email is unique only among local accounts (an SSO account may share it).
+    if User.query.filter_by(email=data['email'], auth_source='local').first():
         return error_response('Email already exists', 409)
 
     # Validate role — only admins can assign non-viewer roles
@@ -293,10 +294,15 @@ def update_user(user_id):
 
     # Update fields
     if 'email' in data:
-        # Check if email already used by another user
-        existing = User.query.filter(User.email == data['email'], User.id != user_id).first()
-        if existing:
-            return error_response('Email already in use', 409)
+        # Email is unique only among local accounts. Only block when this change
+        # would put two local accounts on the same email (an SSO account may
+        # share an email with a local one).
+        if (user.auth_source or 'local') == 'local':
+            existing = User.query.filter(
+                User.email == data['email'], User.id != user_id,
+                User.auth_source == 'local').first()
+            if existing:
+                return error_response('Email already in use', 409)
         user.email = data['email']
 
     if 'full_name' in data:
@@ -344,6 +350,12 @@ def update_user(user_id):
         if not new_active and _is_last_active_admin(user):
             return error_response('Cannot disable the last active admin', 409)
         user.active = new_active
+
+    # SECURITY: Only admins can change 2FA exemption (#141)
+    if 'totp_exempt' in data:
+        if g.current_user.role != 'admin':
+            return error_response('Only admins can change 2FA exemption', 403)
+        user.totp_exempt = bool(data['totp_exempt'])
 
     # Update password if provided
     if 'password' in data and data['password']:

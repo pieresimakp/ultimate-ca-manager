@@ -302,6 +302,15 @@ describe('acmeService', () => {
     expect(call[0]).toContain('/acme/client/orders/5/verify')
   })
 
+  it('verifyChallenge forwards force flag in body', async () => {
+    mockApiClient.post.mockClear()
+    await acmeService.verifyChallenge(5, null, true)
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      expect.stringContaining('/acme/client/orders/5/verify'),
+      { force: true }
+    )
+  })
+
   it('finalizeOrder → POST /acme/client/orders/:id/finalize', async () => {
     await acmeService.finalizeOrder(5)
     expect(mockApiClient.post).toHaveBeenCalled()

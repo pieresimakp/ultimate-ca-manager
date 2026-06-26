@@ -35,10 +35,20 @@ class UserSession(db.Model):
 class User(db.Model):
     """User model for authentication"""
     __tablename__ = "users"
-    
+    __table_args__ = (
+        # Email is unique only among LOCAL accounts (partial index). SSO users are
+        # identified by sso_external_id, never by email, so an SSO account may
+        # share an email with a local one (see #136/#138). Matches migration 045.
+        db.Index('ix_users_email_local', 'email', unique=True,
+                 sqlite_where=db.text("auth_source = 'local'"),
+                 postgresql_where=db.text("auth_source = 'local'")),
+        db.Index('ix_users_sso_identity', 'sso_provider_id', 'sso_external_id'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    # Not globally UNIQUE — see __table_args__ (unique per local account only).
+    email = db.Column(db.String(120), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(255))  # Full name for WebAuthn/certificates
     role = db.Column(db.String(20), nullable=False, default="viewer")  # admin, operator, viewer
@@ -50,6 +60,9 @@ class User(db.Model):
     totp_secret = db.Column(db.String(32))  # Base32-encoded TOTP secret
     totp_confirmed = db.Column(db.Boolean, default=False)  # TOTP setup confirmed
     backup_codes = db.Column(db.Text)  # JSON array of backup codes (hashed)
+    # Per-user opt-out from forced 2FA enrolment (#141). Set on the initial
+    # admin so global enforcement can never lock out the bootstrap account.
+    totp_exempt = db.Column(db.Boolean, default=False)
     
     # Password management
     force_password_change = db.Column(db.Boolean, default=False)  # Must change on next login
@@ -76,6 +89,10 @@ class User(db.Model):
         db.ForeignKey('pro_sso_providers.id', ondelete='SET NULL'),
         nullable=True,
     )
+    # Immutable identifier from the IdP (OIDC `sub` / SAML persistent NameID /
+    # LDAP entryUUID·objectGUID). Bound on first SSO login; the primary key used
+    # to recognise the directory account across username/email changes.
+    sso_external_id = db.Column(db.String(255), nullable=True)
 
     # Relationships
     custom_role = db.relationship('CustomRole', foreign_keys=[custom_role_id], lazy='select')
@@ -130,6 +147,7 @@ class User(db.Model):
             "mfa_enabled": self.mfa_enabled,
             "totp_enabled": self.totp_confirmed,
             "two_factor_enabled": self.totp_confirmed,
+            "totp_exempt": bool(self.totp_exempt),
             "force_password_change": self.force_password_change or False,
             "created_at": utc_isoformat(self.created_at),
             "last_login": utc_isoformat(self.last_login),
@@ -137,6 +155,7 @@ class User(db.Model):
             "failed_logins": self.failed_logins or 0,
             "auth_source": self.auth_source or 'local',
             "sso_provider_id": self.sso_provider_id,
+            "sso_external_id": self.sso_external_id,
         }
         try:
             if self.custom_role_id and self.custom_role:

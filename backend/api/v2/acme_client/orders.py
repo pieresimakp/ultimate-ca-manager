@@ -11,8 +11,9 @@ POST   /api/v2/acme/client/orders/<id>/renew
 """
 
 import logging
+import threading
 import time
-from flask import request
+from flask import request, current_app
 
 from api.v2.acme_client import bp
 from auth.unified import require_auth
@@ -23,6 +24,64 @@ from services.acme.acme_client_service import AcmeClientService
 from services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
+
+# DNS-01 propagation: poll for the expected TXT record before telling the CA to
+# validate, instead of a fixed sleep (#140). Timeout is configurable (up to
+# 3600s). The automated path runs in a background thread (see
+# _run_auto_poll_background), so it is NOT constrained by the gunicorn worker
+# timeout and honors the full configured timeout.
+_DNS_SELFCHECK_DEFAULT_TIMEOUT = 120
+_DNS_SELFCHECK_INTERVAL = 5
+
+
+def _dns_propagation_timeout() -> int:
+    cfg = SystemConfig.query.filter_by(key='acme.client.dns_propagation_timeout').first()
+    try:
+        return max(0, int(cfg.value)) if cfg and cfg.value is not None else _DNS_SELFCHECK_DEFAULT_TIMEOUT
+    except (ValueError, TypeError):
+        return _DNS_SELFCHECK_DEFAULT_TIMEOUT
+
+
+def _txt_present(name: str, expected: str) -> bool:
+    """True if the DNS TXT record `name` currently serves the `expected` value."""
+    try:
+        import dns.resolver
+    except ImportError:
+        return False
+    try:
+        answers = dns.resolver.resolve(name, 'TXT', lifetime=5)
+    except Exception:
+        return False
+    for rdata in answers:
+        try:
+            for chunk in rdata.strings:
+                if chunk.decode('utf-8', 'ignore') == expected:
+                    return True
+        except Exception:
+            if str(rdata).strip('"') == expected:
+                return True
+    return False
+
+
+def _dns_selfcheck(challenges: dict, timeout: int) -> dict:
+    """Poll DNS until every dns-01 TXT record is visible, or until timeout.
+
+    Returns {'ok': bool, 'missing': [domains], 'waited': seconds}. Non-dns-01
+    challenges (no dns_txt_value) are ignored.
+    """
+    pending = {d: c for d, c in challenges.items() if c.get('dns_txt_value')}
+    waited = 0
+    while pending:
+        for domain in list(pending):
+            c = pending[domain]
+            if _txt_present(c['dns_txt_name'], c['dns_txt_value']):
+                logger.info(f'DNS TXT confirmed for {domain} ({c["dns_txt_name"]})')
+                del pending[domain]
+        if not pending or waited >= timeout:
+            break
+        time.sleep(_DNS_SELFCHECK_INTERVAL)
+        waited += _DNS_SELFCHECK_INTERVAL
+    return {'ok': not pending, 'missing': list(pending), 'waited': waited}
 
 
 @bp.route('/api/v2/acme/client/orders', methods=['GET'])
@@ -124,6 +183,7 @@ def request_certificate():
 
     # DNS provider (required for dns-01)
     dns_provider_id = data.get('dns_provider_id')
+    provider = None
     if challenge_type == 'dns-01' and dns_provider_id:
         provider = DnsProvider.query.get(dns_provider_id)
         if not provider:
@@ -173,24 +233,39 @@ def request_certificate():
         # Set up DNS challenges if using dns-01
         challenge_info = {}
         challenge_warning = None
-        auto_poll_result = None
+        auto_polling = False
+        manual_dns = bool(provider) and provider.provider_type == 'manual'
         if challenge_type == 'dns-01':
             setup_success, setup_message, challenge_info = client.setup_dns_challenge(order)
             if not setup_success:
                 challenge_warning = setup_message
+            elif manual_dns:
+                # Manual provider: the user must place the TXT record themselves,
+                # which can take far longer than any auto-wait. Do NOT auto-submit
+                # (that's what made manual DNS-01 fail, #140) — leave the order
+                # pending so the user adds the record and clicks "Verify" when
+                # ready (the verify endpoint self-checks DNS before submitting).
+                logger.info(f'Order {order.id}: manual DNS provider — awaiting user verification')
             else:
-                # Auto-poll: wait for DNS propagation, verify challenges,
-                # and finalize when the order becomes 'ready'.
-                auto_poll_result = _auto_poll_and_finalize(client, order)
+                # Automated provider: run the DNS self-check → verify → poll →
+                # finalize flow in a BACKGROUND thread (DNS propagation + CA
+                # polling can exceed the gunicorn worker timeout). The request
+                # returns immediately; the frontend polls the status endpoint.
+                order.status = 'processing'
+                ok, _err = safe_commit(logger, 'Failed to mark order as processing')
+                if not ok:
+                    return _err
+                auto_polling = True
+                _run_auto_poll_background(order.id, environment)
 
         response_data = {
             'order': order.to_dict(),
             'challenges': challenge_info,
+            'manual_dns': manual_dns,
+            'auto_polling': auto_polling,
         }
         if challenge_warning:
             response_data['challenge_warning'] = challenge_warning
-        if auto_poll_result:
-            response_data['auto_poll'] = auto_poll_result
 
         return success_response(
             data=response_data,
@@ -223,6 +298,7 @@ def verify_challenges(order_id):
 
     data = request.json or {}
     specific_domain = data.get('domain')
+    force = bool(data.get('force'))
 
     try:
         client = AcmeClientService(environment=order.environment)
@@ -231,6 +307,22 @@ def verify_challenges(order_id):
         challenges = order.challenges_dict
 
         domains_to_verify = [specific_domain] if specific_domain else list(challenges.keys())
+
+        # DNS self-check before submitting: if the expected TXT record isn't
+        # visible yet, don't submit (a failed validation marks the order invalid
+        # and burns the token). Tell the user to wait and retry. `force` bypasses.
+        if not force:
+            to_check = {d: challenges[d] for d in domains_to_verify
+                        if d in challenges and challenges[d].get('dns_txt_value')}
+            if to_check:
+                check = _dns_selfcheck(to_check, timeout=0)  # single pass, quick
+                if not check['ok']:
+                    return success_response(
+                        data={'dns_not_ready': True, 'missing': check['missing'],
+                              'order': order.to_dict()},
+                        message=('TXT record not visible yet for '
+                                 f'{", ".join(check["missing"])}. Add the record, '
+                                 'wait for propagation, then verify again.'))
 
         for domain in domains_to_verify:
             if domain not in challenges:
@@ -421,10 +513,24 @@ def renew_order(order_id):
 def _auto_poll_and_finalize(client, order) -> dict:
     """Wait for DNS propagation, verify challenges, poll until ready, auto-finalize.
 
-    Mirrors the renewal service flow (DNS wait → verify → poll → finalize)
-    but inline during the initial certificate request. Returns a status dict
-    that the caller embeds in the API response.
+    Mirrors the renewal service flow (DNS wait → verify → poll → finalize).
+    Runs in a background thread (see _run_auto_poll_background), so it honors the
+    full configured DNS propagation timeout and is NOT constrained by the
+    gunicorn worker timeout. Updates order.status / order.error_message at each
+    transition (committed) so the status endpoint reflects progress. Returns a
+    status dict (used for logging and, under TESTING, embedded in the response).
     """
+    def _set_status(status, error_message=None):
+        """Persist a status transition on the order (best-effort)."""
+        try:
+            order.status = status
+            if error_message is not None:
+                order.error_message = error_message
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f'Failed to persist status={status} for order {order.id}: {e}')
+
     result = {
         'dns_propagation_wait': False,
         'challenge_submitted': False,
@@ -438,12 +544,22 @@ def _auto_poll_and_finalize(client, order) -> dict:
         challenges = order.challenges_dict
         if not challenges:
             result['error'] = 'No challenges for this order'
+            _set_status('pending', result['error'])
             return result
 
-        # 1. Wait for DNS propagation (same delay as renewal service)
-        logger.info('Waiting 10s for DNS propagation...')
-        time.sleep(10)
+        _set_status('processing')
+
+        # 1. Self-check DNS propagation: poll for the expected TXT records up to
+        #    the configured timeout before asking the CA to validate (#140).
+        timeout = _dns_propagation_timeout()
+        check = _dns_selfcheck(challenges, timeout)
         result['dns_propagation_wait'] = True
+        if check['ok']:
+            logger.info(f'DNS propagation confirmed after {check["waited"]}s')
+        else:
+            logger.warning(
+                f'DNS self-check timed out after {timeout}s; TXT not visible for '
+                f'{check["missing"]} — submitting anyway (CA may still validate)')
 
         # 2. Submit challenges for validation
         for domain in challenges:
@@ -453,6 +569,8 @@ def _auto_poll_and_finalize(client, order) -> dict:
                 logger.info(f'Challenge submitted for {domain}')
             else:
                 logger.warning(f'Challenge submission failed for {domain}: {msg}')
+
+        _set_status('validating')
 
         # 3. Poll order status until ready/valid/invalid or timeout
         max_wait = 60  # seconds
@@ -467,7 +585,7 @@ def _auto_poll_and_finalize(client, order) -> dict:
             logger.info(f'ACME order {order.id} status after {elapsed}s: {le_status}')
 
             if le_status in ('ready', 'valid'):
-                # 4. Auto-finalize
+                # 4. Auto-finalize (finalize_order sets status='issued' on success)
                 fin_success, fin_msg, cert_id = client.finalize_order(order)
                 if fin_success:
                     result['finalized'] = True
@@ -481,20 +599,79 @@ def _auto_poll_and_finalize(client, order) -> dict:
                 else:
                     result['error'] = fin_msg
                     logger.warning(f'Auto-finalize failed: {fin_msg}')
+                    _set_status('pending', fin_msg)
                 break
 
             if le_status == 'invalid':
                 result['error'] = f'Order became invalid: {le_data.get("error", {}).get("detail", "Unknown")}'
+                _set_status('invalid', result['error'])
                 break
 
             if elapsed >= max_wait:
                 result['error'] = f'Timeout after {max_wait}s (status: {le_status})'
+                _set_status('pending', result['error'])
                 break
 
     except Exception as e:
         result['error'] = 'ACME order failed, see server logs for details'
-        logger.error(f'Auto-poll error for order {order.id}: {e}')
+        logger.error(f'Auto-poll error for order {order.id}: {e}', exc_info=True)
+        # Reset to 'pending' so the manual Verify/Finalize path can recover.
+        _set_status('pending', result['error'])
 
     logger.info(f'Auto-poll result for order {order.id}: status={result.get("polling_status")}, finalized={result["finalized"]}, error={result["error"]}')
 
     return result
+
+
+def _run_auto_poll_background(order_id: int, environment: str) -> None:
+    """Run the automated DNS-01 flow (self-check → verify → poll → finalize) in a
+    background thread.
+
+    The synchronous HTTP request must not block on DNS propagation + CA polling
+    (can exceed the gunicorn worker timeout). Instead request_certificate kicks
+    this off and returns immediately with the order in 'processing' state; the
+    frontend polls /orders/<id>/status for progress.
+
+    Each background thread pushes its own app context (→ its own SQLAlchemy
+    session), independent of the request's session — same pattern the scheduler
+    uses for its tasks. Under TESTING we run synchronously instead, because the
+    test DB uses a single shared (StaticPool) connection that a background
+    thread would contend with.
+    """
+    app = current_app._get_current_object()
+
+    def _worker():
+        with app.app_context():
+            try:
+                order = AcmeClientOrder.query.get(order_id)
+                if not order:
+                    logger.error(f'Auto-poll background: order {order_id} not found')
+                    return
+                # Skip if the order was cancelled/finalized between request and run.
+                if order.status in ('issued', 'invalid', 'expired'):
+                    logger.info(f'Auto-poll background: order {order_id} already {order.status}, skipping')
+                    return
+                client = AcmeClientService(environment=environment)
+                _auto_poll_and_finalize(client, order)
+            except Exception as e:
+                logger.error(f'Auto-poll background failed for order {order_id}: {e}', exc_info=True)
+                try:
+                    with app.app_context():
+                        order = AcmeClientOrder.query.get(order_id)
+                        if order and order.status not in ('issued', 'invalid', 'expired'):
+                            order.status = 'pending'
+                            order.error_message = 'Background processing failed; retry manually'
+                            db.session.commit()
+                except Exception:
+                    db.session.rollback()
+
+    # Under TESTING the DB is a single shared SQLite connection (StaticPool):
+    # a background thread would contend with the test request's session. Run
+    # inline so the flow remains deterministic and testable.
+    if app.config.get('TESTING'):
+        _worker()
+        return
+
+    thread = threading.Thread(target=_worker, name=f'acme-autopoll-{order_id}', daemon=True)
+    thread.start()
+    logger.info(f'Started background auto-poll thread for order {order_id}')

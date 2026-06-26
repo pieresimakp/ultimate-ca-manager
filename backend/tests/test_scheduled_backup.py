@@ -111,5 +111,71 @@ class TestScheduleEndpoints:
         assert not any(b.get('filename', '').endswith('.tar.gz') for b in items)
 
 
+class TestDecoupledRetention:
+    """Retention runs as its own daily task, independent of auto-backup."""
+
+    def _mk(self, d, name, age_days):
+        import os, time
+        p = d / name
+        p.write_bytes(b'x')
+        ts = time.time() - age_days * 86400
+        os.utime(p, (ts, ts))
+        return p
+
+    def test_run_backup_retention_prunes_old_regardless_of_auto(self, app, tmp_path, monkeypatch):
+        with app.app_context():
+            from services.backup import schedule
+            from config.settings import Config
+            monkeypatch.setattr(Config, 'BACKUP_DIR', tmp_path, raising=False)
+            # auto-backup OFF on purpose
+            _set('auto_backup_enabled', 'false')
+            _set('backup_retention_days', '7')
+            old = self._mk(tmp_path, 'ucm_backup_20000101_000000.ucmbkp', 30)
+            new = self._mk(tmp_path, 'ucm_backup_20990101_000000.ucmbkp', 1)
+
+            removed = schedule.run_backup_retention()
+
+            assert removed == 1
+            assert not old.exists()
+            assert new.exists()
+
+    def test_run_backup_retention_zero_keeps_all(self, app, tmp_path, monkeypatch):
+        with app.app_context():
+            from services.backup import schedule
+            from config.settings import Config
+            monkeypatch.setattr(Config, 'BACKUP_DIR', tmp_path, raising=False)
+            _set('backup_retention_days', '0')
+            old = self._mk(tmp_path, 'ucm_backup_20000101_000000.ucmbkp', 999)
+            assert schedule.run_backup_retention() == 0
+            assert old.exists()
+
+
+class TestDbMigrationSnapshotCap:
+    """Pre-migration DB snapshots are capped to the N most recent."""
+
+    def test_prune_keeps_n_most_recent(self, tmp_path, monkeypatch):
+        import os, time
+        from services.database_admin import helpers
+        monkeypatch.setattr(helpers, 'BACKUP_DIR', tmp_path)
+        for i in range(8):
+            p = tmp_path / f'ucm-sqlite-2026010{i}_000000.db'
+            p.write_bytes(b'x')
+            ts = time.time() - (8 - i) * 86400  # i=7 newest
+            os.utime(p, (ts, ts))
+        # a non-snapshot file must be left untouched
+        (tmp_path / 'keep.txt').write_bytes(b'x')
+
+        removed = helpers._prune_db_migration_snapshots(keep=3)
+
+        survivors = sorted(p.name for p in tmp_path.glob('ucm-*.db'))
+        assert removed == 5
+        assert survivors == [
+            'ucm-sqlite-20260105_000000.db',
+            'ucm-sqlite-20260106_000000.db',
+            'ucm-sqlite-20260107_000000.db',
+        ]
+        assert (tmp_path / 'keep.txt').exists()
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

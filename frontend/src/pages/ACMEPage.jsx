@@ -34,7 +34,7 @@ import LocalDomainForm from './acme/LocalDomainForm'
 
 export default function ACMEPage() {
   const { t } = useTranslation()
-  const { showSuccess, showError, showConfirm, showWarning } = useNotification()
+  const { showSuccess, showError, showConfirm, showWarning, showInfo } = useNotification()
   const { canWrite, canDelete } = usePermission()
 
   // Data states - ACME Server
@@ -82,6 +82,7 @@ export default function ACMEPage() {
   const [localEabKid, setLocalEabKid] = useState('')
   const [localProxyUpstreamUrl, setLocalProxyUpstreamUrl] = useState('')
   const [localProxyEabKid, setLocalProxyEabKid] = useState('')
+  const [localDnsTimeout, setLocalDnsTimeout] = useState('')
   const [proxyEabHmacInput, setProxyEabHmacInput] = useState(null)
   const [testingConnection, setTestingConnection] = useState(false)
   const [connectionResult, setConnectionResult] = useState(null)
@@ -101,6 +102,39 @@ export default function ACMEPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Poll status for an order running the background auto-poll flow (DNS-01 with
+  // an automated provider). request_certificate returns immediately and kicks
+  // off a background thread; the UI reflects progress by polling /status until
+  // the order reaches a terminal state.
+  useEffect(() => {
+    const order = selectedClientOrder
+    if (!order || !['processing', 'validating'].includes(order.status)) return
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const result = await acmeService.checkOrderStatus(order.id)
+        if (cancelled) return
+        const updated = result.data?.order
+        const status = result.data?.status
+        if (updated) {
+          setSelectedClientOrder(updated)
+          setClientOrders(prev => prev.map(o => o.id === updated.id ? updated : o))
+        }
+        if (status === 'issued') {
+          showSuccess(t('acme.orderFinalized'))
+          loadData()
+        } else if (status === 'invalid') {
+          showError(order.error_message || t('acme.orderInvalid'))
+          loadData()
+        }
+      } catch {
+        // Network blip — keep polling; the user can also refresh manually.
+      }
+    }
+    const interval = setInterval(poll, 4000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [selectedClientOrder?.id, selectedClientOrder?.status])
 
   const loadData = async () => {
     setLoading(true)
@@ -134,6 +168,7 @@ export default function ACMEPage() {
       setLocalEabKid(cs.eab_kid || '')
       setLocalProxyUpstreamUrl(cs.proxy_upstream_url || '')
       setLocalProxyEabKid(cs.proxy_eab_kid || '')
+      setLocalDnsTimeout(String(cs.dns_propagation_timeout ?? 120))
       
       setDnsProviders(dnsProvidersRes.data || [])
       setDnsProviderTypes(dnsTypesRes.data || [])
@@ -279,6 +314,23 @@ export default function ACMEPage() {
     }
   }
 
+  // Save a bounded integer field on blur (clamps client-side; matches the
+  // server-side validation so a rejected value is never sent).
+  const handleBlurSaveInt = async (key, rawValue, localSetter, { min = 0, max = 3600, fallback = 0 } = {}) => {
+    let parsed = parseInt(rawValue, 10)
+    if (Number.isNaN(parsed)) parsed = fallback
+    parsed = Math.max(min, Math.min(max, parsed))
+    localSetter(String(parsed)) // normalize the field even on success
+    if (parsed === clientSettings[key]) return
+    try {
+      await acmeService.updateClientSettings({ [key]: parsed })
+      setClientSettings(prev => ({ ...prev, [key]: parsed }))
+    } catch (error) {
+      showError(error.message || t('messages.errors.updateFailed.settings'))
+      localSetter(String(clientSettings[key] ?? fallback))
+    }
+  }
+
   const handleToggleRevokeOnRenewal = (enabled) => {
     if (enabled && revokeSuperseded && acmeSettings.superseded_count > 0) {
       setShowRevokeConfirm(true)
@@ -305,25 +357,52 @@ export default function ACMEPage() {
   const handleRequestCertificate = async (data) => {
     try {
       const result = await acmeService.requestCertificate(data)
-      if (result.data?.challenge_warning) {
-        showWarning(result.data.challenge_warning)
+      const payload = result.data || {}
+      if (payload.challenge_warning) {
+        showWarning(payload.challenge_warning)
+      } else if (payload.auto_polling) {
+        // Automated DNS-01: issuance runs in the background; the detail panel
+        // polls /status until done.
+        showInfo(t('acme.certificateRequestAutoPolling'))
       } else {
         showSuccess(t('acme.certificateRequestCreated'))
       }
       setShowRequestModal(false)
       loadData()
-      if (result.data) {
-        setSelectedClientOrder(result.data)
+      if (payload.order) {
+        setSelectedClientOrder(payload.order)
       }
     } catch (error) {
       showError(error.message || t('acme.certificateRequestFailed'))
     }
   }
   
-  const handleVerifyChallenge = async (order) => {
+  const handleVerifyChallenge = async (order, force = false) => {
     try {
-      const result = await acmeService.verifyChallenge(order.id)
-      const updatedOrder = result.data?.order
+      const result = await acmeService.verifyChallenge(order.id, null, force)
+      const data = result.data || {}
+
+      // DNS self-check gate: the expected TXT record isn't visible to UCM yet.
+      // Don't submit (a failed validation marks the order invalid and burns the
+      // token). Surface the missing domains and offer to force-verify anyway.
+      if (data.dns_not_ready) {
+        const missing = (data.missing || []).join(', ') || '?'
+        const confirmed = await showConfirm(
+          t('acme.dnsNotReadyConfirmDesc', { domains: missing }),
+          {
+            title: t('acme.dnsNotReadyTitle'),
+            confirmText: t('acme.forceVerify'),
+            variant: 'primary',
+          }
+        )
+        if (confirmed) {
+          return handleVerifyChallenge(order, true)
+        }
+        showWarning(t('acme.dnsNotReadyWarning', { domains: missing }))
+        return
+      }
+
+      const updatedOrder = data.order
       if (updatedOrder?.status === 'ready') {
         showSuccess(t('acme.challengeValidated'))
       } else if (updatedOrder?.status === 'pending') {
@@ -936,6 +1015,9 @@ export default function ACMEPage() {
             testingConnection={testingConnection}
             connectionResult={connectionResult}
             onBlurSave={handleBlurSave}
+            onBlurSaveInt={handleBlurSaveInt}
+            localDnsTimeout={localDnsTimeout}
+            onLocalDnsTimeoutChange={setLocalDnsTimeout}
             onUpdateClientSetting={handleUpdateClientSetting}
             onRegisterProxy={handleRegisterProxy}
             onUnregisterProxy={handleUnregisterProxy}

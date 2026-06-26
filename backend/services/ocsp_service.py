@@ -212,7 +212,10 @@ class OCSPService:
         self,
         ca: CA,
         cert_serial: int,
-        request_nonce: Optional[bytes] = None
+        request_nonce: Optional[bytes] = None,
+        hash_algorithm: Optional[hashes.HashAlgorithm] = None,
+        issuer_name_hash: Optional[bytes] = None,
+        issuer_key_hash: Optional[bytes] = None,
     ) -> Tuple[bytes, str]:
         """
         Generate OCSP response for a certificate
@@ -221,11 +224,25 @@ class OCSPService:
             ca: CA object
             cert_serial: Certificate serial number
             request_nonce: Optional nonce from request (for replay protection)
+            hash_algorithm: Hash algorithm of the request CertID (RFC 6960 §4.1.1).
+                The response SingleResponse MUST echo the request's CertID so
+                clients (e.g. Cisco ASA) can correlate the status. Defaults to
+                SHA-256 for legacy/internal callers.
+            issuer_name_hash: Request's issuer name hash (echoed for unknown
+                serials where no issuer cert is needed to recompute).
+            issuer_key_hash: Request's issuer key hash (same as above).
             
         Returns:
             Tuple of (DER-encoded response, status string)
         """
         try:
+            # RFC 6960 §4.2.1: the response CertID MUST use the same hash
+            # algorithm as the request. A SHA-1 request gets a SHA-1 response,
+            # a SHA-256 request gets SHA-256. Defaulting to SHA-256 keeps the
+            # legacy internal contract (tests, scheduled pre-generation).
+            algo = hash_algorithm or hashes.SHA256()
+            algo_name = getattr(algo, 'name', 'sha256')
+
             # Load CA certificate
             ca_crt_pem = base64.b64decode(ca.crt).decode('utf-8')
             ca_cert = x509.load_pem_x509_certificate(ca_crt_pem.encode(), self.backend)
@@ -282,11 +299,15 @@ class OCSPService:
             cert_x509 = self._load_cert(certificate) if certificate else None
             
             if cert_x509:
-                # Standard path: use cert object
+                # Standard path: recompute the CertID hashes from the issuer
+                # cert using the REQUEST's hash algorithm, so the SingleResponse
+                # CertID matches what the client sent (RFC 6960 §4.2.1). This is
+                # what Cisco ASA (and other strict clients) rely on to map the
+                # returned status back to their request.
                 builder = builder.add_response(
                     cert=cert_x509,
                     issuer=ca_cert,
-                    algorithm=hashes.SHA256(),
+                    algorithm=algo,
                     cert_status=status,
                     this_update=this_update,
                     next_update=next_update,
@@ -295,21 +316,41 @@ class OCSPService:
                 )
             else:
                 # Hash-based response for unknown serials or missing .crt
-                # RFC 6960: unknown serial gets UNKNOWN status in a successful response
-                issuer_name_hash = hashes.Hash(hashes.SHA256())
-                issuer_name_hash.update(ca_cert.subject.public_bytes())
-                issuer_key_hash = hashes.Hash(hashes.SHA256())
-                issuer_key_hash.update(
-                    ca_cert.public_key().public_bytes(
-                        serialization.Encoding.DER,
-                        serialization.PublicFormat.SubjectPublicKeyInfo
-                    )
-                )
+                # RFC 6960: unknown serial gets UNKNOWN status in a successful
+                # response. Echo the request's issuer hashes directly when
+                # provided (they were already validated against this CA in
+                # _find_ca_by_issuer_hash); otherwise compute them fresh from
+                # the CA cert with the chosen algorithm.
+                if issuer_name_hash is None or issuer_key_hash is None:
+                    h_name = hashes.Hash(algo)
+                    h_name.update(ca_cert.subject.public_bytes(
+                        serialization.Encoding.DER))
+                    issuer_name_hash = h_name.finalize()
+                    from cryptography.hazmat.primitives.asymmetric import rsa, ec
+                    pubkey = ca_cert.public_key()
+                    if isinstance(pubkey, rsa.RSAPublicKey):
+                        spki_value = pubkey.public_bytes(
+                            encoding=serialization.Encoding.DER,
+                            format=serialization.PublicFormat.PKCS1,
+                        )
+                    elif isinstance(pubkey, ec.EllipticCurvePublicKey):
+                        spki_value = pubkey.public_bytes(
+                            encoding=serialization.Encoding.X962,
+                            format=serialization.PublicFormat.UncompressedPoint,
+                        )
+                    else:
+                        spki_value = pubkey.public_bytes(
+                            encoding=serialization.Encoding.Raw,
+                            format=serialization.PublicFormat.Raw,
+                        )
+                    h_key = hashes.Hash(algo)
+                    h_key.update(spki_value)
+                    issuer_key_hash = h_key.finalize()
                 builder = builder.add_response_by_hash(
-                    issuer_name_hash=issuer_name_hash.finalize(),
-                    issuer_key_hash=issuer_key_hash.finalize(),
+                    issuer_name_hash=issuer_name_hash,
+                    issuer_key_hash=issuer_key_hash,
                     serial_number=cert_serial,
-                    algorithm=hashes.SHA256(),
+                    algorithm=algo,
                     cert_status=status,
                     this_update=this_update,
                     next_update=next_update,
@@ -342,10 +383,13 @@ class OCSPService:
                 response = builder.sign(signing_key, hashes.SHA256())
             response_der = response.public_bytes(serialization.Encoding.DER)
             
-            # Cache response
+            # Cache response — key includes the hash algorithm because a SHA-1
+            # and a SHA-256 response for the same serial are different DER blobs.
+            # Reusing one for the other would re-introduce issue #143.
+            cache_serial = f"{cert_serial_hex}:{algo_name}"
             self._cache_response(
                 ca_id=ca.id,
-                cert_serial=cert_serial_hex,
+                cert_serial=cache_serial,
                 response_der=response_der,
                 status=cert_status,
                 this_update=this_update,
@@ -413,21 +457,31 @@ class OCSPService:
             logger.error(f"Failed to cache OCSP response: {e}")
             db.session.rollback()
     
-    def get_cached_response(self, ca_id: int, cert_serial: str) -> Optional[bytes]:
+    def get_cached_response(
+        self,
+        ca_id: int,
+        cert_serial: str,
+        hash_algorithm: Optional[hashes.HashAlgorithm] = None,
+    ) -> Optional[bytes]:
         """
         Get cached OCSP response if still valid
         
         Args:
             ca_id: CA ID
             cert_serial: Certificate serial number (hex string)
+            hash_algorithm: Hash algorithm of the request CertID. The cache is
+                keyed per-algorithm because the same serial yields distinct
+                responses for SHA-1 vs SHA-256 requests (issue #143).
             
         Returns:
             DER-encoded response or None if not cached or expired
         """
         try:
+            algo_name = getattr(hash_algorithm, 'name', 'sha256') if hash_algorithm else 'sha256'
+            cache_serial = f"{cert_serial}:{algo_name}"
             cached = OCSPResponse.query.filter_by(
                 ca_id=ca_id,
-                cert_serial=cert_serial
+                cert_serial=cache_serial
             ).first()
             
             if not cached:

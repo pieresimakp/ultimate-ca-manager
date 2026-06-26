@@ -8,7 +8,64 @@ Starting with v2.48, UCM uses Major.Build versioning (e.g., 2.48, 2.49). Earlier
 ---
 
 
-## [Unreleased]
+## [2.178] - 2026-06-23
+
+### Fixed
+- **OCSP responder now echoes the request CertID hash algorithm** — the OCSP responder previously always built the `SingleResponse` CertID with SHA-256, regardless of the hash algorithm used in the request. Strict RFC 6960 clients (notably Cisco ASA) send a SHA-1 CertID and reject a response whose CertID they cannot match back to their request, causing OCSP validation to fail despite a valid `good` status. The responder now uses the request's hash algorithm (SHA-1, SHA-256, SHA-384, SHA-512) and recomputes the issuer name/key hashes accordingly, and the response cache is keyed per hash algorithm to avoid cross-algorithm cache collisions (#143).
+
+
+## [2.177] - 2026-06-21
+
+### Fixed
+- **HSM-backed CA certificate issuance** — issuing, renewing, bulk-reissuing, or approval-flow issuing a certificate against an HSM-backed CA (Vault Transit / OpenBao / PKCS#11 / Azure Key Vault / GCP KMS) no longer fails with `CA private key not available`. Every certificate-issuance path now goes through the HSM-aware `get_ca_signing_key` loader instead of reading the local `ca.prv` column (which is empty for HSM CAs), and gates on `has_private_key` rather than on `ca.prv` (#142).
+- **EST and auto-renewal signing** — `sign_csr_from_crypto` (the EST enrollment and automatic-renewal signing path) was loading the CA key directly from `ca.prv` and crashed on HSM-backed CAs; it now routes through the same HSM key loader as the rest of the codebase (#142).
+- **SCEP with HSM-backed CAs** — the SCEP factory no longer crashes when the configured CA is HSM-backed. SCEP requires RSA envelope decryption (RFC 8894 §3.4), which is not available for HSM-resident keys, so the service now returns a clear `SCEP is not supported for HSM-backed CAs` error at configuration time instead of failing opaquely at runtime (#142).
+
+### Changed
+- **Dead code removed** — the unused `CAOperationsMixin.generate_crl` implementation (all callers use `CRLService.generate_crl`, which is already HSM-aware) and the orphaned `get_ca_private_key_pem` helper have been removed.
+
+
+## [2.176] - 2026-06-18
+
+### Added
+- **Forced 2FA enrolment** — local and SSO logins can be required to enrol a TOTP authenticator before the session is fully usable. A restricted session is established until enrolment is complete (only the 2FA enrolment and logout endpoints are reachable). Global enforcement is a single *Enforce Two-Factor Authentication* toggle for local accounts; each SSO provider has its own `enforce_2fa` switch, independent of the global one. Individual users can be exempted (e.g., a break-glass admin). mTLS and WebAuthn logins are never additionally forced, since they are already a strong second factor (#141).
+
+
+## [2.175] - 2026-06-17
+
+### Fixed
+- **Manual DNS-01 is usable again** — the ACME client no longer waits a fixed 10s then auto-submits. For a **Manual** DNS provider the order stays pending so you can add the TXT record and click **Verify Challenge** (which self-checks DNS before submitting, so it never burns the token; a force option bypasses the check). For **automated** providers the client self-checks propagation (configurable *DNS propagation timeout* in ACME → Let's Encrypt settings) and runs validation in the background so the request never blocks (#140).
+
+### Fixed
+- **Duplicate webhook notifications** — `certificate.expiring` (and other events) could be delivered twice with an identical payload while the delivery log showed a single event. Webhook deliveries are now claimed atomically (exactly-once) and the background scheduler runs in a single process, so each delivery is sent once even under concurrent workers (#139).
+
+### Security
+- Updated `cryptography` to 48.0.1 (GHSA-537c-gmf6-5ccf, vulnerable OpenSSL in wheels) and forced `ws` to 8.21.0 (CVE-2026-48779, WebSocket DoS).
+
+
+## [2.173] - 2026-06-17
+
+### Changed
+- **SSO identity is now the directory's stable identifier**, never the email — OIDC `sub`, SAML persistent `NameID`, or LDAP `entryUUID`/`objectGUID` (configurable per provider, auto-detected by default). Accounts are recognised across username/email changes, and the email is never an authentication key (removes account-takeover risk). An SSO login whose email matches a local account now provisions a separate SSO account instead of erroring; an administrator can still merge them via *Link to SSO*, which no longer renames the local username (#136, #138).
+- **Backups** — the backup list is paginated, searchable and sortable, with multi-select bulk delete, a usage summary (count, total size, free disk) and a *Clean up now* action. Retention is always visible (no longer hidden behind the automatic-backup toggle) and is enforced daily even when automatic backups are off.
+
+### Fixed
+- **Backups could fill the disk** — pre-migration database snapshots are now capped to the most recent few, and backup retention runs as its own scheduled task (previously it only ran after a scheduled backup, so manual backups accumulated indefinitely).
+
+
+## [2.172] - 2026-06-16
+
+### Fixed
+- **SSO login with an email that already exists** — an SSO (LDAP/OAuth2/SAML) login whose email matches an existing account no longer returns an Internal Server Error. Instead of silently merging on email (an account-takeover risk) or creating a duplicate, the login is refused with a clear message, and an administrator can deliberately link the two from Users › *Link to SSO* (new `link-sso`/`unlink-sso` actions). One account per email is preserved (#136).
+- **Key-recovery dual control is now configurable** — a Settings › Security toggle enables/disables four-eyes control for private-key recovery, and `KEY_RECOVERY_DUAL_CONTROL` in the service environment overrides it (an explicit `false`/`0`/`no` disables it, and the toggle is shown read-only). Previously the setting could not be changed from the UI and the environment value was ignored (#137).
+
+
+## [2.171] - 2026-06-15
+
+### Added
+- **Key archival & recovery** — a dual-control workflow to recover an archived private key: request (with reason) → admin approve (four-eyes; the approver must differ from the requester, configurable) → download as PKCS#12, once, fully audited. New Governance → Key Recovery page and a per-certificate "Recover key" action. Migration 042 (`key_recovery_requests`).
+- **Code-signing EKUs** — the Extra-EKU picker now ships the well-known code-signing key purposes (Authenticode individual/commercial, lifetime signing, Windows kernel-mode, macOS code signing / Developer ID Application) on top of the base `codeSigning` EKU, for issuing Windows/JAR/macOS code-signing certificates. New [Code Signing](https://github.com/NeySlim/ultimate-ca-manager/wiki/Code-Signing) wiki guide.
+- **Helm chart** — `charts/ucm/` packages UCM for in-cluster deployment (Deployment, Service, Ingress, PVCs, generated/persisted secrets). Single-instance by design; persistent `/etc/ucm` master.key volume (retained on uninstall); SQLite by default or an external PostgreSQL via `database.databaseUrl`.
 
 ## [2.170] - 2026-06-13
 

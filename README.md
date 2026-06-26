@@ -11,7 +11,7 @@
 
 > **UCM is a young and actively developed project.** Feedback, bug reports, and feature requests are very welcome! Feel free to [open an issue](https://github.com/NeySlim/ultimate-ca-manager/issues) — every report helps make UCM better.
 
-> **Latest release — v2.170** (2026-06-13): certificate conformance linting (pkilint/zlint, RFC 5280 + CA/Browser Forum profiles), ACME Renewal Information (ARI, RFC 9773), an opt-in bearer-gated Prometheus `/metrics` endpoint, per-webhook delivery history with manual retry, a background-task scheduler view, and scheduled encrypted backups. See the [v2.170 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md).
+> **Latest release — v2.176** (2026-06-18): forced 2FA enrolment for local logins and per-SSO-provider, with restricted sessions until enrolment completes and per-user exemptions (#141). See the [v2.176 release notes](https://github.com/NeySlim/ultimate-ca-manager/releases/latest) and the full [CHANGELOG](CHANGELOG.md).
 
 ![Dashboard](docs/screenshots/dashboard-dark.png)
 
@@ -159,12 +159,12 @@ Docker: data at `/opt/ucm/data/` (mount as volume), config via environment varia
 
 ## Roadmap
 
-- [ ] **Code Signing** — Issue and manage code signing certificates (Authenticode, JAR, macOS)
 - [ ] **High Availability / Clustering** — Active-passive or active-active HA deployment
-- [ ] **Helm chart** — Package UCM itself as a Helm chart for in-cluster deployment (k8s clusters can already *consume* UCM today via the cert-manager integration shipped in v2.139)
 - [ ] **Post-Quantum Cryptography** — ML-DSA, ML-KEM, SLH-DSA key types (NIST FIPS 203/204/205)
 - [ ] **CMP Protocol (RFC 4210)** — Certificate Management Protocol support
-- [ ] **Key Archival & Recovery** — Secure key escrow with recovery workflows
+- [x] **Key Archival & Recovery** — Dual-control recovery of archived private keys: request → admin approve (four-eyes) → PKCS#12 download, fully audited; [guide](https://github.com/NeySlim/ultimate-ca-manager/wiki/Key-Recovery) *(v2.171)*
+- [x] **Code Signing** — Issue and manage code-signing certificates for Authenticode, JAR and macOS via the `codeSigning` EKU plus platform key purposes (kernel-mode, lifetime, Apple Developer ID); [usage guide](https://github.com/NeySlim/ultimate-ca-manager/wiki/Code-Signing) *(v2.171)*
+- [x] **Helm chart** — Package UCM itself as a Helm chart for in-cluster deployment under `charts/ucm/` (single-instance, persistent `master.key`, SQLite or external PostgreSQL) *(v2.171)*
 - [x] **SAN database columns derived from final SAN list** — `san_email` / `san_dns` / `san_ip` / `san_uri` always match the X.509 extension, with backfill migration *(v2.140)*
 - [x] **On-disk certificate & CA files** — `.crt` / `.key` materialized to disk on every creation path *(v2.140)*
 - [x] **ACME External Account Binding (EAB, RFC 8555 §7.3.4)** — Issue/rotate/revoke `kid`+`hmac` pairs for cert-manager / certbot / acme.sh *(v2.139)*

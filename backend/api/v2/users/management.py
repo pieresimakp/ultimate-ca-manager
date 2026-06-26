@@ -97,6 +97,43 @@ def reset_user_password(user_id):
         return error_response('Failed to reset password', 500)
 
 
+@bp.route('/api/v2/users/<int:user_id>/reset-2fa', methods=['POST'])
+@require_auth(['write:users'])
+def reset_user_2fa(user_id):
+    """
+    Clear a user's 2FA — admin break-glass for a locked-out user (#141).
+
+    POST /api/v2/users/{user_id}/reset-2fa
+
+    The user keeps their account but must re-enrol TOTP on next login if
+    enforcement applies. To let them in without 2FA, also set ``totp_exempt``.
+    """
+    # SECURITY: only admins may reset another user's 2FA
+    if g.current_user.role != 'admin':
+        return error_response('Access denied', 403)
+
+    user = User.query.get(user_id)
+    if not user:
+        return error_response('User not found', 404)
+
+    user.totp_confirmed = False
+    user.totp_secret = None
+    user.backup_codes = None
+    ok, _err = safe_commit(logger, "Failed to reset user 2FA")
+    if not ok:
+        return _err
+
+    AuditService.log_action(
+        action='mfa_reset',
+        resource_type='user',
+        resource_id=str(user.id),
+        resource_name=user.username,
+        details=f'2FA reset by {g.current_user.username} for user: {user.username}',
+        success=True,
+    )
+    return success_response(message=f'2FA reset for user {user.username}')
+
+
 @bp.route('/api/v2/users/<int:user_id>/toggle', methods=['PATCH'])
 @bp.route('/api/v2/users/<int:user_id>/toggle-active', methods=['POST'])
 @require_auth(['write:users'])
@@ -144,6 +181,103 @@ def toggle_user_status(user_id):
         db.session.rollback()
         logger.error(f"Failed to toggle user status: {e}", exc_info=True)
         return error_response('Failed to toggle user status', 500)
+
+
+SSO_NO_PASSWORD = '!SSO_NO_PASSWORD!'
+
+
+@bp.route('/api/v2/users/<int:user_id>/link-sso', methods=['POST'])
+@require_auth(['write:users'])
+def link_user_sso(user_id):
+    """Link an existing local account to an SSO provider (admin only).
+
+    The recommended way to resolve an email collision between a local user and
+    an SSO identity (#136): instead of creating a duplicate or silently merging
+    on email, an admin deliberately links the two. After linking, the matching
+    SSO login adopts this account **by email** — the local username is kept
+    unchanged (renaming it locked admins out of their account, see #138).
+
+    POST /api/v2/users/{user_id}/link-sso
+    Body: {"provider_id": int}
+    """
+    if g.current_user.role != 'admin':
+        return error_response('Insufficient permissions', 403)
+
+    from models.sso import SSOProvider
+
+    user = User.query.get(user_id)
+    if not user:
+        return error_response('User not found', 404)
+    if (user.auth_source or 'local') != 'local' or user.sso_provider_id:
+        return error_response('User is already linked to single sign-on', 400)
+
+    data = request.get_json(silent=True) or {}
+    provider_id = data.get('provider_id')
+    if not provider_id:
+        return error_response('provider_id is required', 400)
+    provider = SSOProvider.query.get(provider_id)
+    if not provider:
+        return error_response('SSO provider not found', 404)
+
+    # Keep the username; the SSO login is matched to this account by email.
+    user.auth_source = provider.provider_type
+    user.sso_provider_id = provider.id
+
+    ok, err = safe_commit(logger, f"Failed to link user {user_id} to SSO")
+    if not ok:
+        return err
+    AuditService.log_action(
+        action='user_link_sso',
+        resource_type='user',
+        resource_id=str(user.id),
+        resource_name=user.username,
+        details=f'Linked account {user.username!r} to SSO provider {provider.name!r}',
+        success=True,
+    )
+    return success_response(
+        data=user.to_dict(),
+        message=f'Account linked to {provider.name}')
+
+
+@bp.route('/api/v2/users/<int:user_id>/unlink-sso', methods=['POST'])
+@require_auth(['write:users'])
+def unlink_user_sso(user_id):
+    """Convert an SSO-linked account back to a local account (admin only).
+
+    POST /api/v2/users/{user_id}/unlink-sso
+    """
+    if g.current_user.role != 'admin':
+        return error_response('Insufficient permissions', 403)
+
+    user = User.query.get(user_id)
+    if not user:
+        return error_response('User not found', 404)
+    if (user.auth_source or 'local') == 'local' and not user.sso_provider_id:
+        return error_response('User is not linked to single sign-on', 400)
+
+    user.auth_source = 'local'
+    user.sso_provider_id = None
+    user.sso_external_id = None
+    # An account that never had a local password must set one before it can log in.
+    needs_password = user.password_hash == SSO_NO_PASSWORD
+    if needs_password:
+        user.force_password_change = True
+
+    ok, err = safe_commit(logger, f"Failed to unlink user {user_id} from SSO")
+    if not ok:
+        return err
+    AuditService.log_action(
+        action='user_unlink_sso',
+        resource_type='user',
+        resource_id=str(user.id),
+        resource_name=user.username,
+        details=f'Unlinked account {user.username!r} from single sign-on',
+        success=True,
+    )
+    msg = f'Account {user.username} converted to local'
+    if needs_password:
+        msg += ' — set a password for this account'
+    return success_response(data=user.to_dict(), message=msg)
 
 
 @bp.route('/api/v2/users/<int:user_id>/unlock', methods=['POST'])
